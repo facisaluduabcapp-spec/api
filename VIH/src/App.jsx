@@ -115,7 +115,8 @@ function AdminPanel({ currentUser }) {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedSections, setSelectedSections] = useState({});
+  const [expandedDates, setExpandedDates] = useState({});
 
   useEffect(() => {
     const fetchUsuarios = async () => {
@@ -136,10 +137,10 @@ function AdminPanel({ currentUser }) {
 
         for (const userId of uids) {
           try {
+            // Obtener InformacionPerfil
             const infoPerfilSnapshot = await getDocs(
               collection(db, 'Usuarios', userId, 'InformacionPerfil')
             );
-            
             const perfiles = [];
             infoPerfilSnapshot.forEach((perfilDoc) => {
               perfiles.push({
@@ -148,9 +149,38 @@ function AdminPanel({ currentUser }) {
               });
             });
 
+            // Obtener Seguimiento
+            const seguimientoSnapshot = await getDocs(
+              collection(db, 'Usuarios', userId, 'Seguimiento')
+            );
+            const seguimiento = [];
+            seguimientoSnapshot.forEach((segDoc) => {
+              seguimiento.push({
+                id: segDoc.id,
+                fecha: segDoc.id,
+                ...segDoc.data()
+              });
+            });
+
+            // Obtener TomasDiarias
+            const tomasSnapshot = await getDocs(
+              collection(db, 'Usuarios', userId, 'TomasDiarias')
+            );
+            const tomas = [];
+            tomasSnapshot.forEach((tomaDoc) => {
+              tomas.push({
+                id: tomaDoc.id,
+                fecha: tomaDoc.id,
+                ...tomaDoc.data()
+              });
+            });
+
             listaUsuarios.push({
               userId: userId,
-              perfiles: perfiles
+              nombre: perfiles.length > 0 ? perfiles[0].nombre || 'Sin nombre' : 'Sin nombre',
+              perfiles: perfiles,
+              seguimiento: seguimiento,
+              tomas: tomas
             });
           } catch (err) {
             console.log(`Error con usuario ${userId}:`, err.message);
@@ -168,6 +198,21 @@ function AdminPanel({ currentUser }) {
 
     fetchUsuarios();
   }, []);
+
+  const toggleSection = (userId, section) => {
+    const key = `${userId}-${section}`;
+    setSelectedSections(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const toggleDate = (key) => {
+    setExpandedDates(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
 
   const handleLogout = () => {
     signOut(auth);
@@ -195,24 +240,104 @@ function AdminPanel({ currentUser }) {
           <h2>Usuarios ({usuarios.length})</h2>
           {usuarios.map((usuario) => (
             <div key={usuario.userId} style={{border: '1px solid #ccc', padding: '15px', marginBottom: '15px'}}>
-              <h3>Usuario ID: {usuario.userId}</h3>
-              <button onClick={() => setSelectedUser(selectedUser === usuario.userId ? null : usuario.userId)}>
-                {selectedUser === usuario.userId ? 'Ocultar' : 'Ver'} InformacionPerfil
-              </button>
+              <h3>👤 {usuario.nombre}</h3>
+              <p style={{color: '#666', fontSize: '14px', margin: '5px 0 10px 0'}}>ID: {usuario.userId}</p>
               
-              {selectedUser === usuario.userId && (
-                <div style={{marginTop: '15px', background: '#f5f5f5', padding: '15px'}}>
-                  <h4>InformacionPerfil ({usuario.perfiles.length} documentos)</h4>
+              <div style={{display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap'}}>
+                <button 
+                  onClick={() => toggleSection(usuario.userId, 'perfil')}
+                  style={{padding: '10px 15px', background: '#4682b4', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px'}}
+                >
+                  {selectedSections[`${usuario.userId}-perfil`] ? '🔽' : '▶️'} InformacionPerfil ({usuario.perfiles.length})
+                </button>
+                
+                <button 
+                  onClick={() => toggleSection(usuario.userId, 'seguimiento')}
+                  style={{padding: '10px 15px', background: '#228b22', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px'}}
+                >
+                  {selectedSections[`${usuario.userId}-seguimiento`] ? '🔽' : '▶️'} Seguimiento ({usuario.seguimiento.length})
+                </button>
+                
+                <button 
+                  onClick={() => toggleSection(usuario.userId, 'tomas')}
+                  style={{padding: '10px 15px', background: '#ff8c00', color: 'white', border: 'none', cursor: 'pointer', borderRadius: '4px'}}
+                >
+                  {selectedSections[`${usuario.userId}-tomas`] ? '🔽' : '▶️'} TomasDiarias ({usuario.tomas.length})
+                </button>
+              </div>
+              
+              {/* InformacionPerfil */}
+              {selectedSections[`${usuario.userId}-perfil`] && (
+                <div style={{marginTop: '15px', padding: '15px', background: '#f0f8ff', border: '1px solid #4682b4'}}>
+                  <h4>📋 InformacionPerfil</h4>
+                  {usuario.perfiles.length === 0 && <p>No hay registros</p>}
                   {usuario.perfiles.map((perfil) => (
-                    <div key={perfil.id} style={{marginBottom: '15px', padding: '10px', background: 'white'}}>
+                    <div key={perfil.id} style={{marginBottom: '10px', padding: '10px', background: 'white'}}>
                       <strong>Documento: {perfil.id}</strong>
-                      <pre style={{marginTop: '10px', overflow: 'auto'}}>
+                      <pre style={{marginTop: '10px', overflow: 'auto', fontSize: '12px'}}>
                         {JSON.stringify(perfil, null, 2)}
                       </pre>
                     </div>
                   ))}
                 </div>
               )}
+
+              {/* Seguimiento */}
+              {selectedSections[`${usuario.userId}-seguimiento`] && (
+                <div style={{marginTop: '15px', padding: '15px', background: '#f0fff0', border: '1px solid #228b22'}}>
+                  <h4>📊 Seguimiento</h4>
+                  {usuario.seguimiento.length === 0 && <p>No hay registros</p>}
+                  {usuario.seguimiento.map((seg) => {
+                    const key = `seg-${usuario.userId}-${seg.id}`;
+                    return (
+                      <div key={seg.id} style={{marginBottom: '10px', border: '1px solid #ccc', background: 'white'}}>
+                        <button 
+                          onClick={() => toggleDate(key)}
+                          style={{width: '100%', padding: '10px', textAlign: 'left', background: '#e8f5e9', border: 'none', cursor: 'pointer'}}
+                        >
+                          📅 {seg.fecha} {expandedDates[key] ? '▼' : '▶'}
+                        </button>
+                        {expandedDates[key] && (
+                          <div style={{padding: '10px'}}>
+                            <pre style={{overflow: 'auto', fontSize: '12px'}}>
+                              {JSON.stringify(seg, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* TomasDiarias */}
+              {selectedSections[`${usuario.userId}-tomas`] && (
+                <div style={{marginTop: '15px', padding: '15px', background: '#fff8f0', border: '1px solid #ff8c00'}}>
+                  <h4>💊 TomasDiarias</h4>
+                  {usuario.tomas.length === 0 && <p>No hay registros</p>}
+                  {usuario.tomas.map((toma) => {
+                    const key = `toma-${usuario.userId}-${toma.id}`;
+                    return (
+                      <div key={toma.id} style={{marginBottom: '10px', border: '1px solid #ccc', background: 'white'}}>
+                        <button 
+                          onClick={() => toggleDate(key)}
+                          style={{width: '100%', padding: '10px', textAlign: 'left', background: '#fff3e0', border: 'none', cursor: 'pointer'}}
+                        >
+                          📅 {toma.fecha} {expandedDates[key] ? '▼' : '▶'}
+                        </button>
+                        {expandedDates[key] && (
+                          <div style={{padding: '10px'}}>
+                            <pre style={{overflow: 'auto', fontSize: '12px'}}>
+                              {JSON.stringify(toma, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
             </div>
           ))}
         </div>
