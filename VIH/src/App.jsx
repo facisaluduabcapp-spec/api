@@ -704,7 +704,7 @@ function App() {
                     <p>Tu cuenta no tiene permisos de administrador.</p>
                     <button onClick={() => signOut(auth)} style={{ padding: '0.5rem 1rem', background: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                         <FontAwesomeIcon icon={faSignOutAlt} style={{ marginRight: '8px' }} />
-                        Cerrar Sesión
+                        Cerrar Sesion
                     </button>
                 </div>
             </div>
