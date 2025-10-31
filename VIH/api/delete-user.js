@@ -1,34 +1,62 @@
-// ✅ CÓDIGO CORREGIDO: Usando IMPORT (ES Modules)
-// -----------------------------------------------------
+// /api/delete-user.js - SOLUCIÓN COMPLETA (CORS y ES Modules)
 
-// 1. Importaciones de Firebase Admin
-// Ahora importamos las funciones específicas, no el objeto 'admin' global
+// 1. Importaciones de Firebase Admin (ES Modules)
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
+// 2. Configuración de CORS
+// ⚠️ IMPORTANTE: Añade aquí tu URL de desarrollo (localhost:5173) y tu URL de Vercel.
+const ALLOWED_ORIGINS = [
+    'https://api-ten-delta-47.vercel.app', // Tu dominio de producción
+    'http://localhost:5173',               // ¡Tu dominio de desarrollo!
+];
 
-// 2. Inicialización del Admin SDK (debe hacerse una sola vez)
-// Usamos getApps().length para verificar la inicialización, es equivalente a admin.apps.length === 0
+// Función Helper para establecer cabeceras CORS
+function setCorsHeaders(req, res) {
+    const origin = req.headers.origin;
+    
+    // Si el origen está permitido, se establece la cabecera
+    if (ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    
+    // Métodos y cabeceras que permites
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+
+// 3. Inicialización del Admin SDK (Solo si no ha sido inicializado)
 if (!getApps().length) {
-    // ⚠️ ATENCIÓN: Estas variables de entorno (process.env.X) 
-    // deben estar configuradas en el Dashboard de Vercel por seguridad.
-    initializeApp({ // Usamos la función initializeApp importada
-        credential: cert({ // Usamos la función cert importada
+    // Estas variables de entorno deben estar configuradas en el Dashboard de Vercel.
+    initializeApp({
+        credential: cert({
             projectId: process.env.FIREBASE_PROJECT_ID,
             clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'), // Importante para saltos de línea
+            // Importante: Reemplaza '\\n' por saltos de línea reales si es necesario
+            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'), 
         }),
     });
 }
 
-// 3. Obtener referencias a los servicios
-// ¡Importante! Debemos obtener la instancia de cada servicio después de la inicialización
+// 4. Obtener referencias a los servicios
 const auth = getAuth();
 const db = getFirestore();
 
-// 4. Función Handler Principal
+
+// 5. Función Handler Principal
 export default async function handler(req, res) {
+    
+    // A. Añadir cabeceras CORS a la respuesta (debe ir antes de cualquier retorno)
+    setCorsHeaders(req, res);
+    
+    // B. Manejar la solicitud Preflight (OPTIONS)
+    if (req.method === 'OPTIONS') {
+        // Responde a la solicitud de verificación previa de CORS
+        return res.status(204).end(); 
+    }
+    
     // Solo permitir peticiones POST para las acciones de eliminación
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Método no permitido. Use POST.' });
@@ -41,13 +69,11 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 5. Eliminar de Firebase Authentication
-        // Usamos la variable 'auth' importada y declarada arriba
+        // 6. Eliminar de Firebase Authentication
         await auth.deleteUser(userId);
         console.log(`Usuario de Auth ${userId} eliminado.`);
 
-        // 6. Eliminar documento principal del usuario en Firestore
-        // Usamos la variable 'db' importada y declarada arriba
+        // 7. Eliminar documento principal del usuario en Firestore
         await db.collection('Usuarios').doc(userId).delete();
         console.log(`Documento de Firestore ${userId} eliminado.`);
         
@@ -61,7 +87,7 @@ export default async function handler(req, res) {
             return res.status(404).json({ error: 'Usuario de autenticación no encontrado.' });
         }
         
-        // 💡 Mejorado el mensaje de error 500 para el frontend
+        // Devolver un JSON válido en caso de cualquier error 500
         return res.status(500).json({ 
             error: "Error interno del servidor al procesar la solicitud.", 
             details: error.message || 'Error desconocido.' 
