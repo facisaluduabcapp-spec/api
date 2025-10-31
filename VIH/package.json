@@ -16,6 +16,7 @@
     "bootstrap": "^5.3.8",
     "file-saver": "^2.0.5",
     "firebase": "^12.4.0",
+    "firebase-admin": "^13.5.0",
     "jszip": "^3.10.1",
     "react": "^19.1.1",
     "react-bootstrap": "^2.10.10",
