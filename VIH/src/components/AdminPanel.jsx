@@ -441,13 +441,15 @@ export default function AdminPanel({ currentUser }) {
 
         try {
             // ... (el resto de tu código de fetch a /api/delete-user) ...
-            const response = await fetch('/api/delete-user', { // La URL es /api/nombre-del-archivo
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ userId: usuario.userId }), // Enviamos el userId
-            });
+            const VERCEL_PROD_URL = 'https://api-ten-delta-47.vercel.app'; 
+
+const response = await fetch(`${VERCEL_PROD_URL}/api/delete-user`, { // <-- ¡CAMBIO AQUÍ!
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ userId: usuario.userId }), 
+});
 
             const data = await response.json();
 
