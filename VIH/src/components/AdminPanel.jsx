@@ -252,7 +252,7 @@ const SectionToggle = ({ title, data, icon, sectionKey, expandedSections, toggle
 };
 
 // 3. Componente para la cabecera de cada usuario (con toggle y botón ZIP)
-const UserHeader = ({ usuario, isExpanded, toggleUser, handleDownloadAllCsv, downloadingZip }) => (
+const UserHeader = ({ usuario, isExpanded, toggleUser, handleDownloadAllCsv, downloadingZip, handleDeleteUser, isDeletingUser }) => (
     <div style={{ width: '100%', padding: '1rem', background: '#f8f9fa', border: 'none', textAlign: 'left', borderRadius: '8px 8px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button
             onClick={() => toggleUser(usuario.userId)}
@@ -267,35 +267,59 @@ const UserHeader = ({ usuario, isExpanded, toggleUser, handleDownloadAllCsv, dow
             </div>
         </button>
         
-        {/* BOTÓN PARA DESCARGAR TODO (ZIP) */}
-        <button
-            onClick={() => handleDownloadAllCsv(usuario)}
-            disabled={downloadingZip === usuario.userId}
-            style={{ 
-                padding: '0.5rem 1rem', 
-                background: downloadingZip === usuario.userId ? '#adb5bd' : '#0d6efd', 
-                color: 'white', 
-                border: 'none', 
-                borderRadius: '4px', 
-                cursor: downloadingZip === usuario.userId ? 'not-allowed' : 'pointer',
-                marginLeft: '1rem',
-                display: 'flex',
-                alignItems: 'center'
-            }}
-        >
-            {downloadingZip === usuario.userId ? (
-                <>
-                    <FontAwesomeIcon icon={faSpinner} spin style={{ marginRight: '8px' }} /> 
-                    Descargando...
-                </>
-            ) : (
-                <>
-                    <FontAwesomeIcon icon={faFileArchive} style={{ marginRight: '8px' }} /> 
-                    Descargar ZIP
-                </>
-            )}
-        </button>
-        
+        {/* GRUPO DE ACCIONES (ZIP y BORRAR) */}
+        <div style={{ display: 'flex', alignItems: 'center', marginLeft: '1rem' }}>
+
+            {/* BOTÓN PARA DESCARGAR TODO (ZIP) */}
+            <button
+                onClick={() => handleDownloadAllCsv(usuario)}
+                disabled={downloadingZip === usuario.userId || isDeletingUser}
+                style={{ 
+                    padding: '0.5rem 1rem', 
+                    background: downloadingZip === usuario.userId ? '#adb5bd' : '#0d6efd', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: (downloadingZip === usuario.userId || isDeletingUser) ? 'not-allowed' : 'pointer',
+                    marginRight: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center'
+                }}
+            >
+                {downloadingZip === usuario.userId ? (
+                    <>
+                        <FontAwesomeIcon icon={faSpinner} spin style={{ marginRight: '8px' }} /> 
+                        ZIP...
+                    </>
+                ) : (
+                    <>
+                        <FontAwesomeIcon icon={faFileArchive} style={{ marginRight: '8px' }} /> 
+                        ZIP
+                    </>
+                )}
+            </button>
+
+            {/* 🚨 BOTÓN PARA ELIMINAR USUARIO 🚨 */}
+            <button
+                onClick={() => handleDeleteUser(usuario)}
+                disabled={isDeletingUser} // Deshabilitamos si cualquier usuario se está eliminando
+                style={{
+                    padding: '0.5rem 1rem',
+                    background: isDeletingUser ? '#adb5bd' : '#dc3545', // Rojo para peligro
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: isDeletingUser ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                }}
+            >
+                <FontAwesomeIcon icon={isDeletingUser ? faSpinner : faSignOutAlt} spin={isDeletingUser} style={{ marginRight: '8px' }} />
+                {isDeletingUser ? 'Eliminando...' : 'Eliminar'}
+            </button>
+        </div>
+
+        {/* BOTÓN TOGGLE DE DETALLE */}
         <button
             onClick={() => toggleUser(usuario.userId)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 1rem' }}
@@ -318,6 +342,7 @@ export default function AdminPanel({ currentUser }) {
     const [expandedDates, setExpandedDates] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [downloadingZip, setDownloadingZip] = useState(null);
+    const [isDeletingUser, setIsDeletingUser] = useState(false);
 
     // --- EFECTO DE CARGA DE DATOS ---
    useEffect(() => {
@@ -406,7 +431,42 @@ export default function AdminPanel({ currentUser }) {
     const toggleUser = (userId) => setExpandedUsers(prev => ({ ...prev, [userId]: !prev[userId] }));
     const toggleSection = (key) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
     const toggleDate = (key) => setExpandedDates(prev => ({ ...prev, [key]: !prev[key] }));
+    
+   const handleDeleteUser = async (usuario) => {
+        const confirmar = window.confirm(`¿Seguro que deseas eliminar al usuario "${usuario.nombre}" y todos sus datos?`);
+        if (!confirmar) return;
 
+        // 💡 ACTIVAR ESTADO
+        setIsDeletingUser(true); 
+
+        try {
+            // ... (el resto de tu código de fetch a /api/delete-user) ...
+            const response = await fetch('/api/delete-user', { // La URL es /api/nombre-del-archivo
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ userId: usuario.userId }), // Enviamos el userId
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                // ...
+            }
+
+            // ... (restos de logs y alerts) ...
+            setUsuarios(prev => prev.filter(u => u.userId !== usuario.userId));
+            alert(`Usuario "${usuario.nombre}" eliminado correctamente. El servidor reportó: ${data.message}`);
+
+        } catch (error) {
+            console.error("❌ Error al eliminar usuario:", error);
+            alert(`Error al eliminar usuario: ${error.message || 'Desconocido'}`);
+        } finally {
+            // 💡 DESACTIVAR ESTADO EN finally
+            setIsDeletingUser(false); 
+        }
+    };
     // --- FUNCIÓN PRINCIPAL DE DESCARGA ZIP (USANDO FUNCIONES AUXILIARES) ---
     const handleDownloadAllCsv = async (usuario) => {
         // Lógica de descarga que usaste, encapsulada en la función downloadUserZip
@@ -505,14 +565,16 @@ export default function AdminPanel({ currentUser }) {
                             <div key={usuario.userId} style={{ marginBottom: '1rem', border: '1px solid #dee2e6', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                                 
                                 {/* CABECERA DE USUARIO */}
-                                <UserHeader 
-                                    usuario={usuario}
-                                    isExpanded={isUserExpanded}
-                                    toggleUser={toggleUser}
-                                    handleDownloadAllCsv={handleDownloadAllCsv}
-                                    downloadingZip={downloadingZip}
-                                />
-
+                               <UserHeader 
+    usuario={usuario}
+    isExpanded={isUserExpanded}
+    toggleUser={toggleUser}
+    handleDownloadAllCsv={handleDownloadAllCsv}
+    downloadingZip={downloadingZip}
+    // 💡 PROPS FALTANTES
+    handleDeleteUser={handleDeleteUser} 
+    isDeletingUser={isDeletingUser}
+/>
                                 {/* CONTENIDO EXPANDIDO */}
                                 {isUserExpanded && (
                                     <div style={{ padding: '0' }}>
