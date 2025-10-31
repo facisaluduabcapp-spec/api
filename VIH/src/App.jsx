@@ -5,7 +5,7 @@ import { getAuth } from "firebase/auth";
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from "firebase/auth";
 
-// --- IMPORTACIONES ---
+// --- IMPORTACIONES --- Cambio e prueba
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
     faLock, faEnvelope, faKey, faSignInAlt, faSpinner, faChartPie, 
