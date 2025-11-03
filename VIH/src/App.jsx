@@ -1313,6 +1313,10 @@ function App() {
 export default App;
 
 */
+
+
+
+/*
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
@@ -1861,7 +1865,7 @@ function AdminPanel({ currentUser }) {
             padding: '2rem'
         }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-               {/* Header */}
+              
 <div
   style={{
     background: "white",
@@ -1934,7 +1938,7 @@ function AdminPanel({ currentUser }) {
   </div>
 </div>
 
-                {/* Search Bar */}
+                
                 <div style={{ 
                     background: 'white',
                     borderRadius: '16px',
@@ -1971,7 +1975,7 @@ function AdminPanel({ currentUser }) {
                     />
                 </div>
             
-                {/* Loading/Error States */}
+                
                 {error && (
                     <div style={{ 
                         padding: '1rem', 
@@ -2035,7 +2039,7 @@ function AdminPanel({ currentUser }) {
                     </div>
                 )}
 
-                {/* Users List */}
+                
                 {!loading && filteredUsuarios.length > 0 && (
   <div>
     <div
@@ -2095,7 +2099,7 @@ function AdminPanel({ currentUser }) {
           e.currentTarget.style.boxShadow = "0 4px 6px rgba(0,0,0,0.07)";
         }}
       >
-        {/* User Header */}
+    
         <div
           style={{
             padding: "1.25rem",
@@ -2175,7 +2179,7 @@ function AdminPanel({ currentUser }) {
               justifyContent: "flex-end",
             }}
           >
-            {/* Delete Button */}
+     
             <button
               onClick={() => handleDeleteUser(usuario)}
               disabled={deletingUser === usuario.userId}
@@ -2218,7 +2222,6 @@ function AdminPanel({ currentUser }) {
               />
             </button>
 
-            {/* Download ZIP Button */}
             <button
               onClick={() => handleDownloadAllCsv(usuario)}
               disabled={downloadingZip === usuario.userId}
@@ -2281,7 +2284,7 @@ function AdminPanel({ currentUser }) {
               )}
             </button>
 
-            {/* Expand/Collapse Button */}
+           
             <button
               onClick={() => toggleUser(usuario.userId)}
               style={{
@@ -2320,10 +2323,10 @@ function AdminPanel({ currentUser }) {
       
 
 
-                                {/* Expanded Content */}
+
                                 {expandedUsers[usuario.userId] && (
                                     <div style={{ padding: '0' }}>
-                                        {/* InformacionPerfil */}
+                                        
                                         <div style={{ borderBottom: '1px solid #e9ecef' }}>
                                             <button
                                                 onClick={() => toggleSection(`${usuario.userId}-perfil`)}
@@ -2400,7 +2403,7 @@ function AdminPanel({ currentUser }) {
                                             )}
                                         </div>
 
-                                        {/* Seguimiento */}
+                                        
                                         <div style={{ borderBottom: '1px solid #e9ecef' }}>
                                             <button
                                                 onClick={() => toggleSection(`${usuario.userId}-seguimiento`)}
@@ -2500,7 +2503,7 @@ function AdminPanel({ currentUser }) {
                                             )}
                                         </div>
 
-                                        {/* TomasDiarias */}
+                                        
                                         <div>
                                             <button
                                                 onClick={() => toggleSection(`${usuario.userId}-tomas`)}
@@ -2732,3 +2735,92 @@ function App() {
 
 export default App;
 
+*/
+import React, { useState, useEffect } from 'react';
+import { 
+    db,
+    auth,
+    collection, 
+    getDocs, 
+    doc, 
+    getDoc, 
+    signInWithEmailAndPassword, 
+    onAuthStateChanged, 
+    signOut 
+} from './firebase/firebase'; // <--- Ajusta la ruta si es necesario
+
+// --- OTRAS IMPORTACIONES (SIN CAMBIOS) ---
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { 
+    faLock, faEnvelope, faKey, faSignInAlt, faSpinner, faChartPie, 
+    faSignOutAlt, faSearch, faUser, faChevronDown, faChevronRight, 
+    faIdCard, faChartLine, faPills, faCalendarAlt, faBan,
+    faFileArchive 
+} from '@fortawesome/free-solid-svg-icons';
+// Librerías para ZIP
+import RenderDataList from './components/RenderDataList';
+import LoginPage from './components/LoginPage';
+import AdminPanel from './components/AdminPanel';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
+
+// ===================================================================
+// --- COMPONENTE RAÍZ: App ---
+// ===================================================================
+function App() {
+    // ... (Este componente no tiene cambios)
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [isAdmin, setIsAdmin] = useState(false);
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            setUser(user);
+            if (user) {
+                try {
+                    const adminDoc = await getDoc(doc(db, 'admins', user.uid));
+                    setIsAdmin(adminDoc.exists() && adminDoc.data()?.role === 'admin');
+                } catch (error) {
+                    console.error("Error al verificar admin:", error);
+                    setIsAdmin(false);
+                }
+            } else {
+                setIsAdmin(false);
+            }
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, []);
+    if (loading) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', fontSize: '1.25rem' }}>
+                <div>
+                    <FontAwesomeIcon icon={faSpinner} spin style={{ marginRight: '10px' }} />
+                    Cargando...
+                </div>
+            </div>
+        );
+    }
+    if (!user) {
+        return <LoginPage />;
+    }
+    if (!isAdmin) {
+        return (
+            <div style={{ textAlign: 'center', padding: '3rem' }}>
+                <div style={{ padding: '2rem', background: '#f8d7da', color: '#842029', borderRadius: '8px', maxWidth: '500px', margin: '0 auto' }}>
+                    <h2>
+                        <FontAwesomeIcon icon={faBan} style={{ marginRight: '8px' }} />
+                        Acceso Denegado
+                    </h2>
+                    <p>Tu cuenta no tiene permisos de administrador.</p>
+                    <button onClick={() => signOut(auth)} style={{ padding: '0.5rem 1rem', background: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                        <FontAwesomeIcon icon={faSignOutAlt} style={{ marginRight: '8px' }} />
+                        Cerrar Sesion
+                    </button>
+                </div>
+            </div>
+        );
+    }
+    return <AdminPanel currentUser={user} />;
+}
+
+export default App;
