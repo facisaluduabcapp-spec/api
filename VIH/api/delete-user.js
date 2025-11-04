@@ -1,63 +1,105 @@
-// /api/delete-user.js - SOLUCIÓN COMPLETA (CORS y ES Modules)
+// /api/delete-user.js - SOLUCIÓN DEFINITIVA
 
-// 1. Importaciones de Firebase Admin (ES Modules)
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// 2. Configuración de CORS
-// ⚠️ IMPORTANTE: Añade aquí tu URL de desarrollo (localhost:5173) y tu URL de Vercel.
 const ALLOWED_ORIGINS = [
-    'https://api-ten-delta-47.vercel.app', // Tu dominio de producción
-    'http://localhost:5173',               // ¡Tu dominio de desarrollo!
+    'https://api-ten-delta-47.vercel.app',
+    'http://localhost:5173',
 ];
 
-// Función Helper para establecer cabeceras CORS
 function setCorsHeaders(req, res) {
     const origin = req.headers.origin;
-    
-    // Si el origen está permitido, se establece la cabecera
     if (ALLOWED_ORIGINS.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     }
-    
-    // Métodos y cabeceras que permites
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-
-// 3. Inicialización del Admin SDK (Solo si no ha sido inicializado)
 if (!getApps().length) {
-    // Estas variables de entorno deben estar configuradas en el Dashboard de Vercel.
     initializeApp({
         credential: cert({
             projectId: process.env.FIREBASE_PROJECT_ID,
             clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            // Importante: Reemplaza '\\n' por saltos de línea reales si es necesario
-            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'), 
+            privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
         }),
     });
 }
 
-// 4. Obtener referencias a los servicios
 const auth = getAuth();
 const db = getFirestore();
 
-
-// 5. Función Handler Principal
-export default async function handler(req, res) {
+// 🔥 Función para eliminar subcolección completa
+async function deleteCollection(collectionRef, batchSize = 100) {
+    const query = collectionRef.limit(batchSize);
     
-    // A. Añadir cabeceras CORS a la respuesta (debe ir antes de cualquier retorno)
+    return new Promise((resolve, reject) => {
+        deleteQueryBatch(query, resolve, reject);
+    });
+}
+
+async function deleteQueryBatch(query, resolve, reject) {
+    try {
+        const snapshot = await query.get();
+        
+        // Si no hay documentos, terminamos
+        if (snapshot.size === 0) {
+            resolve();
+            return;
+        }
+
+        // Eliminar documentos en batch
+        const batch = db.batch();
+        snapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+        
+        await batch.commit();
+
+        // Recursión: si había documentos, puede haber más
+        if (snapshot.size === batchSize) {
+            process.nextTick(() => {
+                deleteQueryBatch(query, resolve, reject);
+            });
+        } else {
+            resolve();
+        }
+    } catch (error) {
+        reject(error);
+    }
+}
+
+// 🔥 Eliminar todas las subcolecciones conocidas de un usuario
+async function deleteUserSubcollections(userId) {
+    const userRef = db.collection('Usuarios').doc(userId);
+    
+    // Lista de subcolecciones que pueden existir
+    const subcollections = ['InformacionPerfil', 'Seguimiento', 'TomasDiarias'];
+    
+    console.log(`🗑️ Eliminando subcolecciones de ${userId}...`);
+    
+    for (const subcollectionName of subcollections) {
+        try {
+            const subcollectionRef = userRef.collection(subcollectionName);
+            await deleteCollection(subcollectionRef);
+            console.log(`  ✅ ${subcollectionName} eliminada (o no existía)`);
+        } catch (error) {
+            console.error(`  ⚠️ Error al eliminar ${subcollectionName}:`, error.message);
+            // Continúa con las demás aunque falle una
+        }
+    }
+}
+
+// 🔥 Handler Principal
+export default async function handler(req, res) {
     setCorsHeaders(req, res);
     
-    // B. Manejar la solicitud Preflight (OPTIONS)
     if (req.method === 'OPTIONS') {
-        // Responde a la solicitud de verificación previa de CORS
-        return res.status(204).end(); 
+        return res.status(204).end();
     }
     
-    // Solo permitir peticiones POST para las acciones de eliminación
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Método no permitido. Use POST.' });
     }
@@ -69,28 +111,38 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 6. Eliminar de Firebase Authentication
-        await auth.deleteUser(userId);
-        console.log(`Usuario de Auth ${userId} eliminado.`);
-
-        // 7. Eliminar documento principal del usuario en Firestore
-        await db.collection('Usuarios').doc(userId).delete();
-        console.log(`Documento de Firestore ${userId} eliminado.`);
+        console.log(`🚀 Iniciando eliminación del usuario: ${userId}`);
         
-        return res.status(200).json({ message: `Usuario ${userId} y sus datos eliminados correctamente.` });
+        // 1️⃣ Eliminar subcolecciones primero
+        await deleteUserSubcollections(userId);
+        
+        // 2️⃣ Eliminar documento principal del usuario
+        await db.collection('Usuarios').doc(userId).delete();
+        console.log(`✅ Documento principal ${userId} eliminado`);
+        
+        // 3️⃣ Eliminar de Firebase Authentication
+        await auth.deleteUser(userId);
+        console.log(`✅ Usuario de Auth ${userId} eliminado`);
+        
+        return res.status(200).json({ 
+            message: `Usuario ${userId} eliminado completamente`,
+            details: {
+                subcollections: 'Eliminadas',
+                firestoreDoc: 'Eliminado',
+                authUser: 'Eliminado'
+            }
+        });
 
     } catch (error) {
-        console.error("Error al eliminar en Vercel Function:", error);
+        console.error("❌ Error al eliminar usuario:", error);
         
-        // Manejo de error específico de Firebase
-        if (error.code && error.code === 'auth/user-not-found') {
+        if (error.code === 'auth/user-not-found') {
             return res.status(404).json({ error: 'Usuario de autenticación no encontrado.' });
         }
         
-        // Devolver un JSON válido en caso de cualquier error 500
         return res.status(500).json({ 
-            error: "Error interno del servidor al procesar la solicitud.", 
-            details: error.message || 'Error desconocido.' 
+            error: "Error interno del servidor", 
+            details: error.message 
         });
     }
 }
