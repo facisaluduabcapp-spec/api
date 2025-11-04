@@ -248,22 +248,50 @@ const SectionToggle = ({ title, data, icon, sectionKey, expandedSections, toggle
 
 // 3. Componente para la cabecera de cada usuario (con toggle y botón ZIP)
 const UserHeader = ({ usuario, isExpanded, toggleUser, handleDownloadAllCsv, downloadingZip, handleDeleteUser, isDeletingUser }) => (
-    <div style={{ width: '100%', padding: '1rem', background: '#f8f9fa', border: 'none', textAlign: 'left', borderRadius: '8px 8px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ 
+        width: '100%', 
+        padding: '1rem', 
+        background: '#f8f9fa', 
+        border: 'none', 
+        textAlign: 'left', 
+        borderRadius: '8px 8px 0 0', 
+        display: 'flex', 
+        flexWrap: 'wrap', // 🔥 Permite que los elementos bajen
+        gap: '1rem', // 🔥 Espaciado uniforme
+        alignItems: 'center' 
+    }}>
+        {/* Información del usuario */}
         <button
             onClick={() => toggleUser(usuario.userId)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, flexGrow: 1, textAlign: 'left' }}
+            style={{ 
+                background: 'none', 
+                border: 'none', 
+                cursor: 'pointer', 
+                padding: 0, 
+                flexGrow: 1, 
+                minWidth: '200px', // 🔥 Ancho mínimo antes de wrap
+                textAlign: 'left' 
+            }}
         >
             <div>
                 <span style={{ fontWeight: 600, marginRight: '0.5rem' }}>
                     <FontAwesomeIcon icon={faUser} style={{ marginRight: '8px' }} />
                     {usuario.nombre}
                 </span>
-                <span style={{ color: '#6c757d', fontSize: '0.875rem' }}>ID: {usuario.userId}</span>
+                <span style={{ color: '#6c757d', fontSize: '0.875rem', display: 'block', marginTop: '0.25rem' }}>
+                    ID: {usuario.userId}
+                </span>
             </div>
         </button>
         
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: '1rem' }}>
-
+        {/* Contenedor de botones */}
+        <div style={{ 
+            display: 'flex', 
+            gap: '0.5rem', 
+            flexWrap: 'wrap', // 🔥 Los botones también hacen wrap si es necesario
+            alignItems: 'center' 
+        }}>
+            {/* Botón ZIP */}
             <button
                 onClick={() => handleDownloadAllCsv(usuario)}
                 disabled={downloadingZip === usuario.userId || isDeletingUser}
@@ -274,9 +302,10 @@ const UserHeader = ({ usuario, isExpanded, toggleUser, handleDownloadAllCsv, dow
                     border: 'none', 
                     borderRadius: '4px', 
                     cursor: (downloadingZip === usuario.userId || isDeletingUser) ? 'not-allowed' : 'pointer',
-                    marginRight: '0.5rem',
                     display: 'flex',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    whiteSpace: 'nowrap', // 🔥 Evita que el texto se rompa
+                    fontSize: '0.875rem' // 🔥 Reduce tamaño en móvil
                 }}
             >
                 {downloadingZip === usuario.userId ? (
@@ -292,31 +321,42 @@ const UserHeader = ({ usuario, isExpanded, toggleUser, handleDownloadAllCsv, dow
                 )}
             </button>
 
+            {/* Botón Eliminar */}
             <button
                 onClick={() => handleDeleteUser(usuario)}
-                disabled={isDeletingUser} // Deshabilitamos si cualquier usuario se está eliminando
+                disabled={isDeletingUser}
                 style={{
                     padding: '0.5rem 1rem',
-                    background: isDeletingUser ? '#adb5bd' : '#dc3545', // Rojo para peligro
+                    background: isDeletingUser ? '#adb5bd' : '#dc3545',
                     color: 'white',
                     border: 'none',
                     borderRadius: '4px',
                     cursor: isDeletingUser ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
+                    whiteSpace: 'nowrap',
+                    fontSize: '0.875rem'
                 }}
             >
                 <FontAwesomeIcon icon={isDeletingUser ? faSpinner : faSignOutAlt} spin={isDeletingUser} style={{ marginRight: '8px' }} />
                 {isDeletingUser ? 'Eliminando...' : 'Eliminar'}
             </button>
-        </div>
 
-        <button
-            onClick={() => toggleUser(usuario.userId)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 1rem' }}
-        >
-            <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} />
-        </button>
+            {/* Botón Toggle (Chevron) */}
+            <button
+                onClick={() => toggleUser(usuario.userId)}
+                style={{ 
+                    background: 'none', 
+                    border: 'none', 
+                    cursor: 'pointer', 
+                    padding: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center'
+                }}
+            >
+                <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} />
+            </button>
+        </div>
     </div>
 );
 
@@ -502,20 +542,47 @@ const response = await fetch(`${VERCEL_PROD_URL}/api/delete-user`, { // <-- ¡CA
     };
 
     return (
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', borderBottom: '2px solid #dee2e6', paddingBottom: '1rem' }}>
-                <div>
-                    <h1 style={{ fontSize: '1.75rem', margin: 0 }}>
-                        <FontAwesomeIcon icon={faChartPie} style={{ marginRight: '10px' }} />
-                        Panel de Administración
-                    </h1>
-                    <p style={{ color: '#6c757d', margin: '0.5rem 0 0 0' }}>Usuario: {currentUser.email}</p>
-                </div>
-                <button onClick={() => signOut(auth)} style={{ padding: '0.5rem 1rem', background: 'white', border: '1px solid #dee2e6', borderRadius: '4px', cursor: 'pointer' }}>
-                    <FontAwesomeIcon icon={faSignOutAlt} style={{ marginRight: '8px' }} />
-                    Cerrar Sesión
-                </button>
-            </div>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem', width: '100%' }}>
+    <div style={{ 
+        display: 'flex', 
+        flexWrap: 'wrap', 
+        gap: '1rem', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '2rem', 
+        borderBottom: '2px solid #dee2e6', 
+        paddingBottom: '1rem' 
+    }}>
+        <div style={{ minWidth: '200px' }}> 
+            <h1 style={{ fontSize: '1.75rem', margin: 0 }}>
+                <FontAwesomeIcon icon={faChartPie} style={{ marginRight: '10px' }} />
+                Panel de Administración
+            </h1>
+            <p style={{ 
+                color: '#6c757d', 
+                margin: '0.5rem 0 0 0',
+                wordBreak: 'break-word' 
+            }}>
+                Usuario: {currentUser.email}
+            </p>
+        </div>
+        
+        <button 
+            onClick={() => signOut(auth)} 
+            style={{ 
+                padding: '0.5rem 1rem', 
+                background: 'white', 
+                border: '1px solid #dee2e6', 
+                borderRadius: '4px', 
+                cursor: 'pointer',
+                whiteSpace: 'nowrap', 
+                fontSize: '0.875rem' 
+            }}
+        >
+            <FontAwesomeIcon icon={faSignOutAlt} style={{ marginRight: '8px' }} />
+            Cerrar Sesión
+        </button>
+    </div>
             
             <div style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f8f9fa', borderRadius: '8px' }}>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '1rem' }}>
