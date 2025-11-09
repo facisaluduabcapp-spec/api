@@ -75,7 +75,7 @@ function LoginPage() {
                 <button
                     onClick={handleLogin}
                     disabled={loading || !email || !password}
-                    style={{ width: '100%', padding: '0.75rem', background: loading ? '#6c757d' : '#0d6efd', color: 'white', border: 'none', borderRadius: '4px', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 500 }}
+                    style={{ width: '100%', padding: '0.75rem', background: loading ? '#6c757d' : '#50B848', color: 'white', border: 'none', borderRadius: '4px', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 500 }}
                 >
                     {loading ? (
                         <>
