@@ -746,7 +746,7 @@ const AnalizadorInteligente = ({ usuario }) => {
                                     )}
                                 </div>
 
-                                {/* Prioridad de Atención */}
+                                {/* Prioridad de Atención 
                                 <div style={{
                                     padding: '1rem',
                                     borderRadius: '8px',
@@ -758,11 +758,11 @@ const AnalizadorInteligente = ({ usuario }) => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'space-between'
-                                }}>
+                                }}>*/}
                                    {/*  <span style={{ fontWeight: 600, fontSize: '1.1rem' }}>
                                          Prioridad de Atención Clínica
                                     </span>
-                                    */}
+                                    
                                     <span style={{ 
                                         fontWeight: 'bold', 
                                         fontSize: '1.2rem',
@@ -772,6 +772,7 @@ const AnalizadorInteligente = ({ usuario }) => {
                                     }}>
                                         {analysis.prioridadAtencion}
                                     </span>
+                                   
                                 </div>
 
                                 {/* Análisis por Categorías */}
