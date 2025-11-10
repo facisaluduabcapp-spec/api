@@ -759,9 +759,10 @@ const AnalizadorInteligente = ({ usuario }) => {
                                     alignItems: 'center',
                                     justifyContent: 'space-between'
                                 }}>
-                                    <span style={{ fontWeight: 600, fontSize: '1.1rem' }}>
+                                   {/*  <span style={{ fontWeight: 600, fontSize: '1.1rem' }}>
                                          Prioridad de Atención Clínica
                                     </span>
+                                    */}
                                     <span style={{ 
                                         fontWeight: 'bold', 
                                         fontSize: '1.2rem',
