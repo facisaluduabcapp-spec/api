@@ -11,6 +11,8 @@ import {
 import AnalizadorInteligente from './AnalizadorInteligente';
 import Escudo from './escudo.png';
 import ComparadorAdherencia from './ComparadorAdherencia';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const escapeCsvValue = (value) => {
     let stringValue = String(value ?? '');
@@ -302,6 +304,10 @@ export default function AdminPanel({ currentUser }) {
 
                 if (uids.length === 0) {
                     console.warn("⚠️ No se encontraron usuarios en la colección 'Usuarios'");
+                    toast.info('No se encontraron usuarios en la base de datos', {
+                        position: "top-right",
+                        autoClose: 3000
+                    });
                     setUsuarios([]);
                     setLoading(false);
                     return;
@@ -353,9 +359,15 @@ export default function AdminPanel({ currentUser }) {
                 }
 
                 setUsuarios(listaUsuarios);
+                
             } catch (error) {
                 console.error("❌ Error general al cargar usuarios:", error);
-                setError("Error al cargar usuarios: " + error.message);
+                const errorMsg = "Error al cargar usuarios: " + error.message;
+                setError(errorMsg);
+                toast.error(errorMsg, {
+                    position: "top-right",
+                    autoClose: 5000
+                });
             } finally {
                 setLoading(false);
             }
@@ -364,7 +376,6 @@ export default function AdminPanel({ currentUser }) {
         fetchUsuarios();
     }, []);
 
-    // Filtrar y separar por tipo
     const filteredUsuarios = usuarios.filter(usuario =>
         usuario.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
         usuario.userId.toLowerCase().includes(searchTerm.toLowerCase())
@@ -390,10 +401,66 @@ export default function AdminPanel({ currentUser }) {
     const toggleDate = (key) => setExpandedDates(prev => ({ ...prev, [key]: !prev[key] }));
     
     const handleDeleteUser = async (usuario) => {
-        const confirmar = window.confirm(`¿Seguro que deseas eliminar al usuario "${usuario.nombre}" y todos sus datos?`);
-        if (!confirmar) return;
+        // Toast de confirmación personalizado
+        const confirmDelete = await new Promise((resolve) => {
+            toast.warn(
+                <div>
+                    <p style={{ marginBottom: '1rem', fontWeight: 'bold' }}>
+                        ¿Seguro que deseas eliminar a "{usuario.nombre}"?
+                    </p>
+                    <p style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+                        Esta acción eliminará todos sus datos permanentemente.
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                        <button
+                            onClick={() => {
+                                toast.dismiss();
+                                resolve(false);
+                            }}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                background: '#6c757d',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={() => {
+                                toast.dismiss();
+                                resolve(true);
+                            }}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                background: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Eliminar
+                        </button>
+                    </div>
+                </div>,
+                {
+                    position: "top-center",
+                    autoClose: false,
+                    closeButton: false,
+                    draggable: false
+                }
+            );
+        });
 
-        setIsDeletingUser(true); 
+        if (!confirmDelete) return;
+
+        setIsDeletingUser(true);
+        const deleteToastId = toast.loading(`Eliminando usuario "${usuario.nombre}"...`, {
+            position: "bottom-right"
+        });
 
         try {
             const VERCEL_PROD_URL = 'https://api-ten-delta-47.vercel.app'; 
@@ -412,51 +479,78 @@ export default function AdminPanel({ currentUser }) {
             }
 
             setUsuarios(prev => prev.filter(u => u.userId !== usuario.userId));
-            alert(`Usuario "${usuario.nombre}" eliminado correctamente. El servidor reportó: ${data.message}`);
+            
+            toast.update(deleteToastId, {
+                render: `✅ Usuario "${usuario.nombre}" eliminado correctamente`,
+                type: "success",
+                isLoading: false,
+                autoClose: 3000
+            });
 
         } catch (error) {
             console.error("❌ Error al eliminar usuario:", error);
-            alert(`Error al eliminar usuario: ${error.message || 'Desconocido'}`);
+            toast.update(deleteToastId, {
+                render: `❌ Error al eliminar usuario: ${error.message}`,
+                type: "error",
+                isLoading: false,
+                autoClose: 5000
+            });
         } finally {
-            setIsDeletingUser(false); 
+            setIsDeletingUser(false);
         }
     };
 
     const handleDownloadAllCsv = async (usuario) => {
         setDownloadingZip(usuario.userId);
-        const zip = new JSZip();
-        const nombreUsuario = usuario.nombre.replace(/[^a-zA-Z0-9]/g, '_') || `Usuario_${usuario.userId.substring(0,5)}`;
-        const rootFolder = zip.folder(nombreUsuario);
+        const toastId = toast.loading(`Generando ZIP para ${usuario.nombre}...`, {
+            position: "bottom-right"
+        });
 
-        const profileCsvString = prepareProfileCsv(usuario.perfiles);
-        if (profileCsvString) {
-            rootFolder.file(`InformacionPerfil/Perfil.csv`, profileCsvString);
-        }
-
-        const seguimientoFiles = prepareSeguimientoCsv(usuario.seguimiento);
-        if (seguimientoFiles.length > 0) {
-            const segFolder = rootFolder.folder(`Seguimiento`);
-            seguimientoFiles.forEach(fileInfo => {
-                const filename = fileInfo.filename.split('/')[1]; 
-                segFolder.file(filename, fileInfo.csvString); 
-            });
-        }
-
-        const tomasFiles = prepareTomasCsv(usuario.tomas);
-        if (tomasFiles.length > 0) {
-            const tomasFolder = rootFolder.folder(`TomasDiarias`);
-            tomasFiles.forEach(fileInfo => {
-                const filename = fileInfo.filename.split('/')[1]; 
-                tomasFolder.file(filename, fileInfo.csvString);
-            });
-        }
-        
         try {
+            const zip = new JSZip();
+            const nombreUsuario = usuario.nombre.replace(/[^a-zA-Z0-9]/g, '_') || `Usuario_${usuario.userId.substring(0,5)}`;
+            const rootFolder = zip.folder(nombreUsuario);
+
+            const profileCsvString = prepareProfileCsv(usuario.perfiles);
+            if (profileCsvString) {
+                rootFolder.file(`InformacionPerfil/Perfil.csv`, profileCsvString);
+            }
+
+            const seguimientoFiles = prepareSeguimientoCsv(usuario.seguimiento);
+            if (seguimientoFiles.length > 0) {
+                const segFolder = rootFolder.folder(`Seguimiento`);
+                seguimientoFiles.forEach(fileInfo => {
+                    const filename = fileInfo.filename.split('/')[1]; 
+                    segFolder.file(filename, fileInfo.csvString); 
+                });
+            }
+
+            const tomasFiles = prepareTomasCsv(usuario.tomas);
+            if (tomasFiles.length > 0) {
+                const tomasFolder = rootFolder.folder(`TomasDiarias`);
+                tomasFiles.forEach(fileInfo => {
+                    const filename = fileInfo.filename.split('/')[1]; 
+                    tomasFolder.file(filename, fileInfo.csvString);
+                });
+            }
+            
             const content = await zip.generateAsync({ type: "blob" });
             saveAs(content, `${nombreUsuario}.zip`);
+            
+            toast.update(toastId, {
+                render: `✅ ZIP de ${usuario.nombre} descargado correctamente`,
+                type: "success",
+                isLoading: false,
+                autoClose: 3000
+            });
         } catch (error) {
             console.error("Error al generar el ZIP:", error);
-            alert("Error al generar el archivo ZIP.");
+            toast.update(toastId, {
+                render: "❌ Error al generar el archivo ZIP",
+                type: "error",
+                isLoading: false,
+                autoClose: 5000
+            });
         } finally {
             setDownloadingZip(null);
         }
@@ -464,47 +558,63 @@ export default function AdminPanel({ currentUser }) {
 
     const handleDownloadAllUsersZip = async () => {
         if (usuarios.length === 0) {
-            alert("No hay usuarios cargados para descargar.");
+            toast.warning('No hay usuarios cargados para descargar', {
+                position: "top-right"
+            });
             return;
         }
 
         setIsDownloadingAll(true);
-        const zip = new JSZip();
-        const allUsersFolder = zip.folder("Datos_Todos_Usuarios"); 
-
-        for (const usuario of usuarios) {
-            const nombreUsuario = usuario.nombre.replace(/[^a-zA-Z0-9]/g, '_') || `Usuario_${usuario.userId.substring(0,5)}`;
-            const userFolder = allUsersFolder.folder(nombreUsuario); 
-
-            const profileCsvString = prepareProfileCsv(usuario.perfiles);
-            if (profileCsvString) {
-                userFolder.file(`InformacionPerfil/Perfil.csv`, profileCsvString);
-            }
-
-            const seguimientoFiles = prepareSeguimientoCsv(usuario.seguimiento);
-            seguimientoFiles.forEach(fileInfo => {
-                userFolder.file(fileInfo.filename, fileInfo.csvString); 
-            });
-
-            const tomasFiles = prepareTomasCsv(usuario.tomas);
-            tomasFiles.forEach(fileInfo => {
-                userFolder.file(fileInfo.filename, fileInfo.csvString);
-            });
-        }
+        const toastId = toast.loading(`Generando ZIP con ${usuarios.length} usuarios...`, {
+            position: "bottom-right"
+        });
 
         try {
+            const zip = new JSZip();
+            const allUsersFolder = zip.folder("Datos_Todos_Usuarios"); 
+
+            for (const usuario of usuarios) {
+                const nombreUsuario = usuario.nombre.replace(/[^a-zA-Z0-9]/g, '_') || `Usuario_${usuario.userId.substring(0,5)}`;
+                const userFolder = allUsersFolder.folder(nombreUsuario); 
+
+                const profileCsvString = prepareProfileCsv(usuario.perfiles);
+                if (profileCsvString) {
+                    userFolder.file(`InformacionPerfil/Perfil.csv`, profileCsvString);
+                }
+
+                const seguimientoFiles = prepareSeguimientoCsv(usuario.seguimiento);
+                seguimientoFiles.forEach(fileInfo => {
+                    userFolder.file(fileInfo.filename, fileInfo.csvString); 
+                });
+
+                const tomasFiles = prepareTomasCsv(usuario.tomas);
+                tomasFiles.forEach(fileInfo => {
+                    userFolder.file(fileInfo.filename, fileInfo.csvString);
+                });
+            }
+
             const content = await zip.generateAsync({ type: "blob" });
             saveAs(content, `Datos_Todos_Usuarios_${new Date().toISOString().substring(0, 10)}.zip`);
-            alert(`¡Descarga de ${usuarios.length} usuarios completada!`);
+            
+            toast.update(toastId, {
+                render: `🎉 Descarga de ${usuarios.length} usuarios completada`,
+                type: "success",
+                isLoading: false,
+                autoClose: 4000
+            });
         } catch (error) {
             console.error("Error al generar el ZIP Global:", error);
-            alert("Error al generar el archivo ZIP Global.");
+            toast.update(toastId, {
+                render: "❌ Error al generar el archivo ZIP Global",
+                type: "error",
+                isLoading: false,
+                autoClose: 5000
+            });
         } finally {
             setIsDownloadingAll(false);
         }
     };
 
-    // Función para renderizar lista de usuarios
     const renderUserList = (userList) => (
         userList.map((usuario) => {
             const isUserExpanded = expandedUsers[usuario.userId];
@@ -562,6 +672,8 @@ export default function AdminPanel({ currentUser }) {
 
     return (
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1rem', width: '100%' }}>
+            <ToastContainer />
+            
             <div style={{ 
                 display: 'flex', 
                 flexWrap: 'wrap', 
@@ -699,7 +811,6 @@ export default function AdminPanel({ currentUser }) {
                                     alignItems: 'center',
                                     gap: '0.5rem'
                                 }}>
-                                   
                                     Usuarios Tipo A
                                     <span style={{
                                         backgroundColor: 'rgba(255,255,255,0.9)',
@@ -751,8 +862,6 @@ export default function AdminPanel({ currentUser }) {
                             {renderUserList(usuariosB)}
                         </div>
                     )}
-
-                    
                 </div>
             )}
         </div>
