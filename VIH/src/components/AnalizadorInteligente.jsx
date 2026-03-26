@@ -498,6 +498,136 @@ const calcularDiferenciaMinutos = (horaProgramada, horaReal) => {
     }
 };
 
+const generarAnalisisLocal = (usuario) => {
+    const analisisCategorias = analizarSeguimientoPorCategorias(usuario.seguimiento || []);
+    const estadisticasMeds = calcularEstadisticasMedicamentos(usuario.tomas || []);
+    const tendencia = analizarTendenciaTemporal(usuario.seguimiento || []);
+    const patrones = detectarPatrones(usuario.seguimiento || [], estadisticasMeds, analisisCategorias);
+    const alertas = generarAlertas(analisisCategorias, estadisticasMeds, tendencia, usuario.seguimiento || []);
+    const recomendaciones = generarRecomendaciones(analisisCategorias, estadisticasMeds, tendencia, patrones);
+
+    let puntuacionGeneral = 0;
+    if (estadisticasMeds.totalTomas > 0) {
+        puntuacionGeneral += (parseFloat(estadisticasMeds.adherencia) / 100) * 25;
+    }
+
+    Object.keys(analisisCategorias.categorias).forEach(cat => {
+        if (analisisCategorias.categorias[cat].total > 0) {
+            puntuacionGeneral += (parseFloat(analisisCategorias.categorias[cat].adherencia) / 100) * 15;
+        }
+    });
+
+    if (tendencia.tendencia === 'mejorando') puntuacionGeneral += 15;
+    else if (tendencia.tendencia === 'mejorando_leve') puntuacionGeneral += 10;
+    else if (tendencia.tendencia === 'estable') puntuacionGeneral += 7.5;
+    else if (tendencia.tendencia === 'deteriorando_leve') puntuacionGeneral += 3;
+
+    puntuacionGeneral = Math.max(0, Math.min(100, puntuacionGeneral));
+
+    let prioridadAtencion = 'baja';
+    if (puntuacionGeneral < 50 || alertas.some(a => a.nivel === 'alta')) {
+        prioridadAtencion = 'alta';
+    } else if (puntuacionGeneral < 70 || alertas.some(a => a.nivel === 'media')) {
+        prioridadAtencion = 'media';
+    }
+
+    return {
+        puntuacionGeneral: puntuacionGeneral.toFixed(0),
+        analisisCategorias,
+        estadisticasMeds,
+        tendencia,
+        patrones,
+        alertas,
+        recomendaciones,
+        prioridadAtencion,
+        ...evaluarRiesgoLocal(puntuacionGeneral)
+    };
+};
+
+const evaluarRiesgoLocal = (puntuacionGeneral) => {
+    const prob = Number((puntuacionGeneral / 100).toFixed(4));
+    const will_take = prob >= 0.50;
+    const risk = prob >= 0.70 ? 'low' : prob >= 0.50 ? 'medium' : 'high';
+
+    return { prob, will_take, risk };
+};
+
+const parseNumber = (value, fallback = 0) => {
+    const n = Number(value);
+    if (Number.isFinite(n) && !Number.isNaN(n)) {
+        return n;
+    }
+    return fallback;
+};
+
+const prepararPayloadIA = (usuario) => {
+    const perfil = (usuario.perfiles && usuario.perfiles[0]) || {};
+
+    const edad = parseNumber(perfil.edad, 45);
+    let bmi = parseNumber(perfil.BMI || perfil.imc || perfil.IMC, 0);
+    if (!bmi) {
+        const peso = parseNumber(perfil.pesoKg || perfil.peso || perfil.peso_kg, 70);
+        const altura = parseNumber(perfil.alturaM || (perfil.alturaCm / 100) || (perfil.altura_cm / 100), 1.7);
+        bmi = altura > 0 ? Number((peso / (altura * altura)).toFixed(1)) : 27.5;
+    }
+
+    const blood_glucose = parseNumber(perfil.blood_glucose || perfil.glucosa || perfil.glucemia, 95);
+    const heart_rate = parseNumber(perfil.heart_rate || perfil.frecuencia_cardiaca || perfil.fc, 72);
+    const sleep_hours = parseNumber(perfil.sleep_hours || perfil.horas_sueno || perfil.sueno, 7);
+    const bp_sist = parseNumber(perfil.bp_sist || perfil.presion_sistolica || perfil.tension_sistolica, 120);
+    const comorbidities = parseNumber(perfil.comorbilidades || perfil.comorbidities || perfil.comorbids, 1);
+
+    const seguimiento = usuario.seguimiento || [];
+    const actividad = seguimiento.filter(s => ['ActividadFisica', 'actividadfisica', 'Actividad Física', 'actividad_fisica'].includes(s.categoria));
+    const actividadPos = actividad.filter(item => (item.respuesta || '').toLowerCase().includes('sí') || (item.respuesta || '').toLowerCase().includes('si')).length;
+    const activity_level = actividad.length > 0 ? Number(((actividadPos / actividad.length) * 5).toFixed(1)) : 3.0;
+
+    const estigma = seguimiento.filter(s => ['Estigma', 'estigma'].includes(s.categoria));
+    const estigmaNeg = estigma.filter(item => {
+        const r = (item.respuesta || '').toLowerCase();
+        return ['ansioso', 'estresado', 'triste', 'deprimido', 'abrumado', 'culpable', 'avergonzado', 'preocupado', 'nervioso'].some(w => r.includes(w));
+    }).length;
+    const stress_level = estigma.length > 0 ? Number(((estigmaNeg / estigma.length) * 5).toFixed(1)) : 3.0;
+
+    const socialCandidates = seguimiento.filter(s => ['Alimentacion', 'alimentacion', 'Farmaco', 'farmaco'].includes(s.categoria));
+    const socialPos = socialCandidates.filter(item => (item.respuesta || '').toLowerCase().includes('sí') || (item.respuesta || '').toLowerCase().includes('si')).length;
+    const social_support = socialCandidates.length > 0 ? Number(((socialPos / socialCandidates.length) * 5).toFixed(1)) : 3.0;
+
+    const reminder_sent = seguimiento.some(item => {
+        const q = (item.pregunta || item.categoria || '').toLowerCase();
+        return q.includes('recordatorio') || q.includes('recordar') || q.includes('alarma');
+    }) ? 1 : 0;
+
+    const now = new Date();
+    const weekday = now.getDay();
+    const dia_semana = weekday === 0 ? 7 : weekday;
+    const es_fin_semana = dia_semana === 6 || dia_semana === 7 ? 1 : 0;
+
+    const historial = seguimiento
+        .slice(-12)
+        .map(item => ((item.respuesta || '').toLowerCase().includes('sí') || (item.respuesta || '').toLowerCase().includes('si')) ? 1 : 0);
+
+    while (historial.length < 12) historial.unshift(0);
+
+    return {
+        patient_id: usuario.userId || perfil.id || 'test_001',
+        age: edad,
+        BMI: bmi,
+        heart_rate: heart_rate,
+        blood_glucose: blood_glucose,
+        activity_level: activity_level,
+        sleep_hours: sleep_hours,
+        stress_level: stress_level,
+        social_support: social_support,
+        bp_sist: bp_sist,
+        comorbidities: comorbidities,
+        reminder_sent: reminder_sent,
+        dia_semana: dia_semana,
+        es_fin_semana: es_fin_semana,
+        historial: historial,
+    };
+};
+
 // ===================================================================
 // COMPONENTE PRINCIPAL
 // ===================================================================
@@ -507,66 +637,141 @@ const AnalizadorInteligente = ({ usuario }) => {
     const [analysis, setAnalysis] = useState(null);
     const [showModal, setShowModal] = useState(false);
 
+    const prepararPayloadLSTM = (usuario) => {
+        const profile = (usuario.perfiles && usuario.perfiles[0]) || {};
+        const age = parseNumber(profile.edad, 45);
+        const seguimiento = usuario.seguimiento || [];
+
+        const eventos = seguimiento
+            .slice(-6)
+            .map(item => ({
+                taken: ((item.respuesta || '').toLowerCase().includes('sí') || (item.respuesta || '').toLowerCase().includes('si')) ? 1 : 0,
+                dia_semana: !item.fecha ? 0 : (new Date(item.fecha).getDay() || 0),
+                stress_level: parseNumber(item.stress_level || item.nivel_estrés || item.nivel_estres, 3),
+                sleep_hours: parseNumber(item.sleep_hours || item.horas_sueno || item.horas_sueño, 7),
+                social_support: parseNumber(item.social_support || item.apoyo_social || item.red_social, 3),
+                age,
+                heart_rate: parseNumber(item.heart_rate || item.frecuencia_cardiaca || item.fc, 72),
+                activity_level: parseNumber(item.activity_level || item.actividad || item.nivel_actividad, 3),
+                reminder_sent: ((item.pregunta || '').toLowerCase().includes('recordatorio') || (item.respuesta || '').toLowerCase().includes('recordatorio')) ? 1 : 0
+            }));
+
+        while (eventos.length < 6) {
+            eventos.unshift({
+                taken: 0,
+                dia_semana: 0,
+                stress_level: 3,
+                sleep_hours: 7,
+                social_support: 3,
+                age,
+                heart_rate: 72,
+                activity_level: 3,
+                reminder_sent: 0
+            });
+        }
+
+        return {
+            patient_id: usuario.userId || profile.id || 'test_001',
+            eventos
+        };
+    };
+
+    const analizarConModelo = async (modelo) => {
+        setIsAnalyzing(true);
+        setShowModal(true);
+
+        const urls = {
+            rf: import.meta.env.VITE_AI_RF_URL || 'https://fernanda7171-RandomForest.hf.space/predict',
+            lstm: import.meta.env.VITE_AI_LSTM_URL || 'https://fernanda7171-lstm.hf.space/predict'
+        };
+
+        const apiUrl = urls[modelo];
+        if (!apiUrl) {
+            console.error(`URL no configurada para modelo ${modelo}`);
+            setIsAnalyzing(false);
+            return;
+        }
+
+        const payload = modelo === 'lstm' ? prepararPayloadLSTM(usuario) : prepararPayloadIA(usuario);
+
+        console.log(`[${modelo.toUpperCase()}] URL:`, apiUrl);
+        console.log(`[${modelo.toUpperCase()}] Payload:`, JSON.stringify(payload, null, 2));
+
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.text().catch(() => 'No response body');
+                console.error(`[${modelo.toUpperCase()}] API Error - Status: ${response.status}, Body:`, errorData);
+                throw new Error(errorData?.error || `Error ${response.status}: ${errorData}`);
+            }
+
+            const data = await response.json();
+            console.log(`[${modelo.toUpperCase()}] API Response:`, data);
+            const apiAnalysis = data?.analysis || data;
+            const localAnalysis = generarAnalisisLocal(usuario);
+
+            const modelResult = apiAnalysis.predictions || apiAnalysis.data || apiAnalysis.rows || apiAnalysis || {};
+            const rfResult = (Array.isArray(modelResult) && modelResult.length > 0) ? modelResult[0] : modelResult;
+
+            setAnalysis({
+                ...localAnalysis,
+                model: modelo,
+                apiRaw: data,
+                modelResult: rfResult,
+                modelDetails: {
+                    prob: rfResult?.prob ?? rfResult?.probability ?? rfResult?.score ?? null,
+                    will_take: rfResult?.will_take ?? rfResult?.will_take ?? null,
+                    risk: rfResult?.risk ?? null,
+                    patient_id: rfResult?.patient_id ?? apiAnalysis?.patient_id ?? usuario.userId
+                }
+            });
+        } catch (error) {
+            console.error('Error en análisis con IA:', error);
+            const localAnalysis = generarAnalisisLocal(usuario);
+            setAnalysis({
+                ...localAnalysis,
+                model: modelo,
+                modelResult: null,
+                modelDetails: {
+                    prob: null,
+                    will_take: null,
+                    risk: 'error',
+                    patient_id: usuario.userId || (usuario.perfiles?.[0]?.id || 'test_001')
+                },
+                apiRaw: null,
+                apiError: error.message
+            });
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
     const analizarConAlgoritmos = () => {
         setIsAnalyzing(true);
         setShowModal(true);
 
         setTimeout(() => {
             try {
-                // Ejecutar todos los algoritmos
-                const analisisCategorias = analizarSeguimientoPorCategorias(usuario.seguimiento || []);
-                const estadisticasMeds = calcularEstadisticasMedicamentos(usuario.tomas || []);
-                const tendencia = analizarTendenciaTemporal(usuario.seguimiento || []);
-                const patrones = detectarPatrones(usuario.seguimiento || [], estadisticasMeds, analisisCategorias);
-                const alertas = generarAlertas(analisisCategorias, estadisticasMeds, tendencia, usuario.seguimiento || []);
-                const recomendaciones = generarRecomendaciones(analisisCategorias, estadisticasMeds, tendencia, patrones);
-
-                // Calcular puntuación global compuesta
-                let puntuacionGeneral = 0;
-                let factores = 0;
-
-                // Factor 1: Adherencia farmacológica (peso: 25%)
-                if (estadisticasMeds.totalTomas > 0) {
-                    puntuacionGeneral += (parseFloat(estadisticasMeds.adherencia) / 100) * 25;
-                    factores++;
-                }
-
-                // Factor 2-5: Adherencia por categorías (peso: 15% cada una = 60% total)
-                Object.keys(analisisCategorias.categorias).forEach(cat => {
-                    if (analisisCategorias.categorias[cat].total > 0) {
-                        puntuacionGeneral += (parseFloat(analisisCategorias.categorias[cat].adherencia) / 100) * 15;
-                        factores++;
+                const localResult = generarAnalisisLocal(usuario);
+                setAnalysis({
+                    ...localResult,
+                    model: 'local',
+                    modelResult: null,
+                    apiRaw: null,
+                    modelDetails: {
+                        prob: 'N/A',
+                        will_take: 'N/A',
+                        risk: 'N/A',
+                        patient_id: usuario.userId || (usuario.perfiles?.[0]?.id || 'test_001')
                     }
                 });
-
-                // Factor 6: Tendencia (peso: 15%)
-                if (tendencia.tendencia === 'mejorando') puntuacionGeneral += 15;
-                else if (tendencia.tendencia === 'mejorando_leve') puntuacionGeneral += 10;
-                else if (tendencia.tendencia === 'estable') puntuacionGeneral += 7.5;
-                else if (tendencia.tendencia === 'deteriorando_leve') puntuacionGeneral += 3;
-
-                puntuacionGeneral = Math.max(0, Math.min(100, puntuacionGeneral));
-
-                // Determinar prioridad
-                let prioridadAtencion = 'baja';
-                if (puntuacionGeneral < 50 || alertas.some(a => a.nivel === 'alta')) {
-                    prioridadAtencion = 'alta';
-                } else if (puntuacionGeneral < 70 || alertas.some(a => a.nivel === 'media')) {
-                    prioridadAtencion = 'media';
-                }
-
-                setAnalysis({
-                    puntuacionGeneral: puntuacionGeneral.toFixed(0),
-                    analisisCategorias,
-                    estadisticasMeds,
-                    tendencia,
-                    patrones,
-                    alertas,
-                    recomendaciones,
-                    prioridadAtencion
-                });
             } catch (error) {
-                console.error('Error en análisis:', error);
+                console.error('Error en análisis local:', error);
             } finally {
                 setIsAnalyzing(false);
             }
@@ -648,6 +853,52 @@ const AnalizadorInteligente = ({ usuario }) => {
 
                         {analysis && !isAnalyzing && (
                             <div>
+                                {/* Resumen de modelo IA */}
+                                {analysis.model && (
+                                    <div style={{
+                                        padding: '0.85rem',
+                                        marginBottom: '1rem',
+                                        backgroundColor: '#e9f7fd',
+                                        border: '1px solid #a0d9f8',
+                                        borderRadius: '8px',
+                                        color: '#05213a'
+                                    }}>
+                                        <strong>Modelo:</strong> {analysis.model.toUpperCase()}
+                                        <div style={{ marginTop: '0.3rem', fontSize: '0.85rem' }}>
+                                            {analysis.modelDetails && (
+                                                <span>
+                                                    Prob: {analysis.modelDetails.prob ?? 'N/A'} •
+                                                    Will_take: {String(analysis.modelDetails.will_take ?? 'N/A')} •
+                                                    Risk: {analysis.modelDetails.risk ?? 'N/A'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {analysis.apiRaw && (
+                                            <pre style={{
+                                                marginTop: '0.5rem',
+                                                maxHeight: '120px',
+                                                overflowY: 'auto',
+                                                background: '#f4f8fc',
+                                                padding: '0.5rem',
+                                                borderRadius: '6px',
+                                                fontSize: '0.75rem'
+                                            }}>
+                                                {JSON.stringify(analysis.apiRaw, null, 2)}
+                                            </pre>
+                                        )}
+
+                                        {analysis.apiError && (
+                                            <div style={{
+                                                marginTop: '0.4rem',
+                                                color: '#b02a37',
+                                                fontWeight: 'bold',
+                                                fontSize: '0.82rem'
+                                            }}>
+                                                Error API: {analysis.apiError}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 {/* Tarjetas de métricas principales */}
                                 <div style={{
                                     display: 'grid',
@@ -1003,42 +1254,63 @@ const AnalizadorInteligente = ({ usuario }) => {
 
     return (
         <>
-            <button
-                onClick={analizarConAlgoritmos}
-                disabled={isAnalyzing}
-                style={{
-                    padding: '0.5rem 1rem',
-                    background: isAnalyzing ? '#adb5bd' : 'linear-gradient(135deg, #48b1b8ff 0%, #20419A 100%)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: isAnalyzing ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    whiteSpace: 'nowrap',
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    transition: 'all 0.3s ease',
-                    boxShadow: isAnalyzing ? 'none' : '0 4px 15px rgba(102, 126, 234, 0.4)'
-                }}
-                onMouseEnter={(e) => {
-                    if (!isAnalyzing) {
-                        e.target.style.transform = 'translateY(-2px)';
-                        e.target.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.6)';
-                    }
-                }}
-                onMouseLeave={(e) => {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = isAnalyzing ? 'none' : '0 4px 15px rgba(102, 126, 234, 0.4)';
-                }}
-            >
-                <FontAwesomeIcon 
-                    icon={isAnalyzing ? faSpinner : faBrain} 
-                    spin={isAnalyzing}
-                    style={{ marginRight: '8px' }} 
-                />
-                {isAnalyzing ? 'Analizando...' : 'Analisis inteligente'}
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', maxWidth: '320px' }}>
+                <button
+                    onClick={() => analizarConModelo('rf')}
+                    disabled={isAnalyzing}
+                    style={{
+                        padding: '0.5rem 1rem',
+                        background: isAnalyzing ? '#adb5bd' : 'linear-gradient(135deg, #48b1b8ff 0%, #20419A 100%)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: isAnalyzing ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        whiteSpace: 'nowrap',
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        transition: 'all 0.3s ease',
+                        boxShadow: isAnalyzing ? 'none' : '0 4px 15px rgba(102, 126, 234, 0.4)'
+                    }}
+                >
+                    <FontAwesomeIcon 
+                        icon={isAnalyzing ? faSpinner : faBrain} 
+                        spin={isAnalyzing}
+                        style={{ marginRight: '8px' }} 
+                    />
+                    {isAnalyzing ? 'Analizando...' : 'RandomForest'}
+                </button>
+
+                <button
+                    onClick={() => analizarConModelo('lstm')}
+                    disabled={isAnalyzing}
+                    style={{
+                        padding: '0.5rem 1rem',
+                        background: isAnalyzing ? '#adb5bd' : 'linear-gradient(135deg, #efb9f5 0%, #c567d8 100%)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: isAnalyzing ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        whiteSpace: 'nowrap',
+                        fontSize: '0.875rem',
+                        fontWeight: 600,
+                        transition: 'all 0.3s ease',
+                        boxShadow: isAnalyzing ? 'none' : '0 4px 15px rgba(126, 63, 181, 0.4)'
+                    }}
+                >
+                    <FontAwesomeIcon 
+                        icon={isAnalyzing ? faSpinner : faBrain} 
+                        spin={isAnalyzing}
+                        style={{ marginRight: '8px' }} 
+                    />
+                    {isAnalyzing ? 'Analizando...' : 'LSTM'}
+                </button>
+            </div>
 
             <Modal />
         </>
