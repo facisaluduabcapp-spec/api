@@ -165,15 +165,19 @@ const ComparadorAdherencia = ({ usuarios }) => {
             try {
                 const uA = usuarios.filter(u => u.perfiles?.[0]?.tipoUsuario==='Usuario A');
                 const uB = usuarios.filter(u => u.perfiles?.[0]?.tipoUsuario==='Usuario B');
+                console.log('ComparadorAdherencia: usuarios total=', usuarios.length, 'A=', uA.length, 'B=', uB.length);
+                console.log('ComparadorAdherencia: uA sample=', uA.map(u => ({ userId:u.userId, tipoUsuario:u.perfiles?.[0]?.tipoUsuario, tomasCount:u.tomas?.length, tomasIds:u.tomas?.slice(0,8).map(d=>d.id)})));
+                console.log('ComparadorAdherencia: uB sample=', uB.map(u => ({ userId:u.userId, tipoUsuario:u.perfiles?.[0]?.tipoUsuario, tomasCount:u.tomas?.length, tomasIds:u.tomas?.slice(0,8).map(d=>d.id)})));
                 const sA = calcularEstadisticasGrupo(uA);
                 const sB = calcularEstadisticasGrupo(uB);
+                console.log('ComparadorAdherencia: statsA=', sA, 'statsB=', sB);
                 setAnalysis({
                     statsA: sA,
                     statsB: sB,
                     totalUsuarios: usuarios.length,
                     periodoStr: `${offsetDate(6)} → ${offsetDate(1)}`,
                 });
-            } catch(e) { console.error(e); }
+            } catch(e) { console.error('ComparadorAdherencia error', e); }
             finally    { setAnalyzing(false); }
         }, 800);
     };
