@@ -1,16 +1,61 @@
-# React + Vite
+﻿# VIH App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Proyecto de soporte para adherencia y análisis de pacientes con VIH.
 
-Currently, two official plugins are available:
+## Qué hace
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Interfaz React/Vite para mostrar datos de pacientes y métricas de adherencia.
+- Utiliza Firebase para carga y lectura de información de usuarios y registros de toma de medicamentos.
+- Incluye un componente de análisis inteligente que consulta modelos ML externos:
+  - Random Forest
+  - LSTM
+- Presenta alertas, recomendaciones y explicación de resultados para apoyar la interpretación médica.
 
-## React Compiler
+## Tecnologías principales
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19
+- Vite
+- Firebase
+- Bootstrap
+- FontAwesome
+- React Bootstrap
+- ESLint
 
-## Expanding the ESLint configuration
+## Estructura relevante
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- `src/main.jsx` → punto de entrada de la app.
+- `src/App.jsx` → componente raíz.
+- `src/firebase/firebase.js` → configuración de Firebase.
+- `src/components/AnalizadorInteligente.jsx` → análisis de adherencia y llamadas a modelos.
+- `src/components/LoginPage.jsx` → autenticación/ingreso.
+- `src/components/AdminPanel.jsx` → panel de administración.
+- `src/components/RenderDataList.jsx` → renderizado de datos.
+- `api/delete-user.js` → endpoint para eliminación de usuario.
+
+## Cómo ejecutar
+
+1. Instalar dependencias:
+   ```bash
+   npm install
+   ```
+2. Iniciar servidor de desarrollo:
+   ```bash
+   npm run dev
+   ```
+3. Compilar para producción:
+   ```bash
+   npm run build
+   ```
+
+## Lógica de análisis
+
+- `AnalizadorInteligente` construye un historial de adherencia desde `usuario.tomas`.
+- Calcula métricas psicossociales sobre `usuario.seguimiento`.
+- Consulta los modelos ML y muestra sus señales, junto con explicaciones para el médico.
+
+## Notas para el bot de soporte
+
+- La app está diseñada para ayudar a médicos y personal de salud a interpretar adherencia a tratamiento.
+- Los resultados del modelo incluyen probabilidad (`prob`), predicción de toma (`will_take`) y nivel de riesgo (`risk`).
+- Si hay menos de 6 días de datos, la app muestra un mensaje de insuficiencia de datos.
+- El flujo principal es: cargar paciente → generar análisis → mostrar alertas y recomendaciones.
