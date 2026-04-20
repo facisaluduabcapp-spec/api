@@ -29,6 +29,7 @@ const offsetDate = (daysAgo) => {
     return `${year}-${month}-${day}`; // Retorna "2026-03-24" exacto
 };
 const esSi = (r) => /^s[\u00edi]/i.test((r||'').trim());
+const esTomado = (v) => v === true || /^s[\u00edi]/i.test(String(v||'').trim());
 
 // ─────────────────────────────────────────────────────────────────────
 // CONSTRUCCION DE HISTORIAL POR FECHA REAL
@@ -47,8 +48,7 @@ const extraerRespuestasFarmaco = (tomas) => {
                     Object.keys(medsEnHora).forEach(nombreMed => {
                         const registro = medsEnHora[nombreMed];
                         resultado.push({
-                            // Forzamos la respuesta para el historial
-                            respuesta: registro.tomado ? 'Sí' : 'No',
+                            respuesta: esTomado(registro?.tomado) ? 'Sí' : 'No',
                             fecha: fechaDia,
                         });
                     });
@@ -86,23 +86,6 @@ const construirHistorial = (tomas, n = 12) => {
     return hist;
 };
 
-const construirHistorialReciente = (tomas, n = 6) => {
-    if (!Array.isArray(tomas) || tomas.length === 0) return Array(n).fill(0);
-    const ordenadas = [...tomas].sort((a, b) => {
-        const fa = toDateStr(a.fecha || a.id) || '';
-        const fb = toDateStr(b.fecha || b.id) || '';
-        return fb.localeCompare(fa);
-    });
-    const recientes = ordenadas.slice(0, n);
-    const resp = extraerRespuestasFarmaco(recientes);
-    const porFecha = {};
-    resp.forEach(r => {
-        if (!r.fecha) return;
-        porFecha[r.fecha] = porFecha[r.fecha]===1 ? 1 : (esSi(r.respuesta)?1:0);
-    });
-    return recientes.map(dia => porFecha[toDateStr(dia.fecha || dia.id)] ?? 0);
-};
-
 const contarRegistrosUltimos6Dias = (tomas) => {
     if (!Array.isArray(tomas)) return 0;
     const desde = offsetDate(5);
@@ -124,22 +107,15 @@ const calcularEstadisticasGrupo = (usuarios) => {
     let registrosRecientes = 0;
 
     usuarios.forEach(usuario => {
-        const tomas = usuario.tomas||[];
+        const tomas = usuario.tomas || [];
         const registros = contarRegistrosUltimos6Dias(tomas);
         const hist = construirHistorial(tomas, 6);
-        let a6d = calcularAdherenciaDesdeHistorial(hist);
-        let usados = registros;
-
-        if (registros === 0 && tomas.length > 0) {
-            const histReciente = construirHistorialReciente(tomas, 6);
-            a6d = calcularAdherenciaDesdeHistorial(histReciente);
-            usados = Math.min(6, tomas.length);
-        }
+        const a6d = calcularAdherenciaDesdeHistorial(hist);
 
         registrosUltimos6Dias += registros;
-        registrosRecientes += usados;
+        registrosRecientes += registros;
 
-        if (usados > 0) {
+        if (registros > 0) {
             adherencias.push(a6d?.porcentaje ?? 0);
             usuariosConDatos++;
         }
@@ -193,17 +169,22 @@ const ComparadorAdherencia = ({ usuarios }) => {
     const [showModal, setShowModal] = useState(false);
     const [analyzing, setAnalyzing] = useState(false);
     const [analysis, setAnalysis]   = useState(null);
+    const usuariosArray = Array.isArray(usuarios) ? usuarios : [];
 
     const realizarAnalisis = () => {
+        if (usuariosArray.length === 0) {
+            console.warn('ComparadorAdherencia: no hay usuarios cargados para comparar');
+            return;
+        }
         setAnalyzing(true);
         setShowModal(true);
         setTimeout(() => {
             try {
-                const uA = usuarios.filter(u => u.perfiles?.find(p => p?.tipoUsuario === 'Usuario A'));
-                const uB = usuarios.filter(u => u.perfiles?.find(p => p?.tipoUsuario === 'Usuario B'));
-                console.log('ComparadorAdherencia: usuarios total=', usuarios.length, 'A=', uA.length, 'B=', uB.length);
-                console.log('ComparadorAdherencia: uA sample=', uA.map(u => ({ userId:u.userId, tipoUsuario:u.perfiles?.find(p=>p?.tipoUsuario)?.tipoUsuario, tomasCount:u.tomas?.length, tomasIds:u.tomas?.slice(0,8).map(d=>d.id)})));
-                console.log('ComparadorAdherencia: uB sample=', uB.map(u => ({ userId:u.userId, tipoUsuario:u.perfiles?.find(p=>p?.tipoUsuario)?.tipoUsuario, tomasCount:u.tomas?.length, tomasIds:u.tomas?.slice(0,8).map(d=>d.id)})));
+                const uA = usuariosArray.filter(u => u.perfiles?.find(p => p?.tipoUsuario === 'Usuario A'));
+                const uB = usuariosArray.filter(u => u.perfiles?.find(p => p?.tipoUsuario === 'Usuario B'));
+                console.log('ComparadorAdherencia: usuarios total=', usuariosArray.length, 'A=', uA.length, 'B=', uB.length);
+                console.log('ComparadorAdherencia: uA sample=', uA.map(u => ({ userId:u.userId, tipoUsuario:u.perfiles?.find(p=>p?.tipoUsuario)?.tipoUsuario, tomasCount:u.tomas?.length, tomasIds:u.tomas?.slice(0,8).map(d=>d.id)})).slice(0,5));
+                console.log('ComparadorAdherencia: uB sample=', uB.map(u => ({ userId:u.userId, tipoUsuario:u.perfiles?.find(p=>p?.tipoUsuario)?.tipoUsuario, tomasCount:u.tomas?.length, tomasIds:u.tomas?.slice(0,8).map(d=>({id:d.id, fecha:d.fecha, tomas:d.tomas}))})).slice(0,5));
                 const sA = calcularEstadisticasGrupo(uA);
                 const sB = calcularEstadisticasGrupo(uB);
                 console.log('ComparadorAdherencia: statsA=', sA, 'statsB=', sB);
@@ -288,11 +269,14 @@ const ComparadorAdherencia = ({ usuarios }) => {
 
     return (
         <>
-            <button onClick={realizarAnalisis} disabled={analyzing}
-                style={{padding:'0.5rem 1rem',background:analyzing?C.gray100:C.greenDark,color:analyzing?C.gray500:C.white,border:'none',borderRadius:'6px',cursor:analyzing?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'7px',fontSize:'0.8rem',fontWeight:600,whiteSpace:'nowrap',letterSpacing:'0.02em'}}>
+            <button onClick={realizarAnalisis} disabled={analyzing || usuariosArray.length === 0}
+                style={{padding:'0.5rem 1rem',background:(analyzing || usuariosArray.length === 0)?C.gray100:C.greenDark,color:(analyzing || usuariosArray.length === 0)?C.gray500:C.white,border:'none',borderRadius:'6px',cursor:(analyzing || usuariosArray.length === 0)?'not-allowed':'pointer',display:'flex',alignItems:'center',gap:'7px',fontSize:'0.8rem',fontWeight:600,whiteSpace:'nowrap',letterSpacing:'0.02em'}}>
                 <FontAwesomeIcon icon={analyzing?faSpinner:faUsers} spin={analyzing}/>
                 {analyzing?'Comparando…':'Comparar A vs B'}
             </button>
+            {usuariosArray.length === 0 && (
+                <p style={{margin:'0.75rem 0 0',fontSize:'0.78rem',color:C.gray500}}>Esperando carga de usuarios para comparar...</p>
+            )}
             <Modal/>
         </>
     );
