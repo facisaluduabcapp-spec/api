@@ -82,11 +82,31 @@ const construirHistorial = (tomas, n = 12) => {
     return hist;
 };
 
+const construirHistorialReciente = (tomas, n = 6) => {
+    if (!Array.isArray(tomas) || tomas.length === 0) return Array(n).fill(0);
+    const ordenadas = [...tomas].sort((a, b) => {
+        const fa = toDateStr(a.fecha || a.id) || '';
+        const fb = toDateStr(b.fecha || b.id) || '';
+        return fb.localeCompare(fa);
+    });
+    const recientes = ordenadas.slice(0, n);
+    const resp = extraerRespuestasFarmaco(recientes);
+    const porFecha = {};
+    resp.forEach(r => {
+        if (!r.fecha) return;
+        porFecha[r.fecha] = porFecha[r.fecha]===1 ? 1 : (esSi(r.respuesta)?1:0);
+    });
+    return recientes.map(dia => porFecha[toDateStr(dia.fecha || dia.id)] ?? 0);
+};
+
 const contarRegistrosUltimos6Dias = (tomas) => {
     if (!Array.isArray(tomas)) return 0;
     const desde = offsetDate(6);
     const hasta = offsetDate(1);
-    return tomas.filter(d => d.id && d.id >= desde && d.id <= hasta).length;
+    return tomas.filter(d => {
+        const fecha = toDateStr(d.fecha || d.id);
+        return fecha && fecha >= desde && fecha <= hasta;
+    }).length;
 };
 
 // ─────────────────────────────────────────────────────────────────────
@@ -97,14 +117,25 @@ const calcularEstadisticasGrupo = (usuarios) => {
     const adherencias = [];
     let usuariosConDatos = 0;
     let registrosUltimos6Dias = 0;
+    let registrosRecientes = 0;
 
     usuarios.forEach(usuario => {
-        const registros = contarRegistrosUltimos6Dias(usuario.tomas||[]);
+        const tomas = usuario.tomas||[];
+        const registros = contarRegistrosUltimos6Dias(tomas);
+        const hist = construirHistorial(tomas, 6);
+        let a6d = calcularAdherenciaDesdeHistorial(hist);
+        let usados = registros;
+
+        if (registros === 0 && tomas.length > 0) {
+            const histReciente = construirHistorialReciente(tomas, 6);
+            a6d = calcularAdherenciaDesdeHistorial(histReciente);
+            usados = Math.min(6, tomas.length);
+        }
+
         registrosUltimos6Dias += registros;
-        const hist = construirHistorial(usuario.tomas||[], 6);
-        const a6d  = calcularAdherenciaDesdeHistorial(hist);
-        // Solo contar si tiene al menos 1 registro en los últimos 6 días
-        if (registros > 0) {
+        registrosRecientes += usados;
+
+        if (usados > 0) {
             adherencias.push(a6d?.porcentaje ?? 0);
             usuariosConDatos++;
         }
@@ -114,7 +145,7 @@ const calcularEstadisticasGrupo = (usuarios) => {
         return { totalUsuarios:usuarios.length, usuariosConDatos:0,
             adherenciaPromedio:'0.0', mediana:'0.0', desviacionEstandar:'0.0',
             adherenciaAlta:0, adherenciaMedia:0, adherenciaBaja:0, adherencias,
-            registrosUltimos6Dias };
+            registrosUltimos6Dias, registrosRecientes };
     }
 
     const promedio = adherencias.reduce((a,b)=>a+b,0) / adherencias.length;
@@ -134,6 +165,7 @@ const calcularEstadisticasGrupo = (usuarios) => {
         adherenciaMedia: adherencias.filter(a=>a>=60&&a<80).length,
         adherenciaBaja:  adherencias.filter(a=>a<60).length,
         registrosUltimos6Dias,
+        registrosRecientes,
         adherencias,
     };
 };
@@ -163,11 +195,11 @@ const ComparadorAdherencia = ({ usuarios }) => {
         setShowModal(true);
         setTimeout(() => {
             try {
-                const uA = usuarios.filter(u => u.perfiles?.[0]?.tipoUsuario==='Usuario A');
-                const uB = usuarios.filter(u => u.perfiles?.[0]?.tipoUsuario==='Usuario B');
+                const uA = usuarios.filter(u => u.perfiles?.find(p => p?.tipoUsuario === 'Usuario A'));
+                const uB = usuarios.filter(u => u.perfiles?.find(p => p?.tipoUsuario === 'Usuario B'));
                 console.log('ComparadorAdherencia: usuarios total=', usuarios.length, 'A=', uA.length, 'B=', uB.length);
-                console.log('ComparadorAdherencia: uA sample=', uA.map(u => ({ userId:u.userId, tipoUsuario:u.perfiles?.[0]?.tipoUsuario, tomasCount:u.tomas?.length, tomasIds:u.tomas?.slice(0,8).map(d=>d.id)})));
-                console.log('ComparadorAdherencia: uB sample=', uB.map(u => ({ userId:u.userId, tipoUsuario:u.perfiles?.[0]?.tipoUsuario, tomasCount:u.tomas?.length, tomasIds:u.tomas?.slice(0,8).map(d=>d.id)})));
+                console.log('ComparadorAdherencia: uA sample=', uA.map(u => ({ userId:u.userId, tipoUsuario:u.perfiles?.find(p=>p?.tipoUsuario)?.tipoUsuario, tomasCount:u.tomas?.length, tomasIds:u.tomas?.slice(0,8).map(d=>d.id)})));
+                console.log('ComparadorAdherencia: uB sample=', uB.map(u => ({ userId:u.userId, tipoUsuario:u.perfiles?.find(p=>p?.tipoUsuario)?.tipoUsuario, tomasCount:u.tomas?.length, tomasIds:u.tomas?.slice(0,8).map(d=>d.id)})));
                 const sA = calcularEstadisticasGrupo(uA);
                 const sB = calcularEstadisticasGrupo(uB);
                 console.log('ComparadorAdherencia: statsA=', sA, 'statsB=', sB);
