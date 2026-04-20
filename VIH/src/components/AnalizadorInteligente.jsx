@@ -586,6 +586,19 @@ const AnalizadorInteligente = ({ usuario }) => {
                                     {analysis.modelDetails.threshold != null && <span>Threshold: <strong>{analysis.modelDetails.threshold}</strong></span>}
                                 </div>
                             )}
+                            {analysis.model && (
+                                <div style={{ padding:'0.75rem 1rem', borderRadius:'8px', border:`1px solid ${C.gray200}`, background:C.gray50, fontSize:'0.82rem', color:C.gray700 }}>
+                                    {analysis.model === 'rf' ? (
+                                        <p style={{ margin:0 }}>
+                                            Random Forest: “Prob” es la probabilidad de que el paciente tome el medicamento, “Threshold” indica el valor mínimo requerido, “Will take” es la predicción de toma y “Risk” señala el nivel de riesgo.
+                                        </p>
+                                    ) : (
+                                        <p style={{ margin:0 }}>
+                                            LSTM: “Prob” es la probabilidad de toma, “Will take” predice si tomará el medicamento y “Risk” indica el nivel de riesgo.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Adherencia 6 días */}
                             {analysis.adherencia6d && (
