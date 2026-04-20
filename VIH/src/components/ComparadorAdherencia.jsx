@@ -31,8 +31,8 @@ const offsetDate = (daysAgo) => {
 const esSi = (r) => /^s[\u00edi]/i.test((r||'').trim());
 
 // ─────────────────────────────────────────────────────────────────────
-// CONSTRUCCIÓN DE HISTORIAL POR FECHA REAL
-// (misma lógica que AnalizadorInteligente — fuente única de verdad)
+// CONSTRUCCION DE HISTORIAL POR FECHA REAL
+// (misma logica que AnalizadorInteligente — fuente unica de verdad)
 // ─────────────────────────────────────────────────────────────────────
 const extraerRespuestasFarmaco = (tomas) => {
     const resultado = [];
@@ -82,21 +82,29 @@ const construirHistorial = (tomas, n = 12) => {
     return hist;
 };
 
+const contarRegistrosUltimos6Dias = (tomas) => {
+    if (!Array.isArray(tomas)) return 0;
+    const desde = offsetDate(6);
+    const hasta = offsetDate(1);
+    return tomas.filter(d => d.id && d.id >= desde && d.id <= hasta).length;
+};
+
 // ─────────────────────────────────────────────────────────────────────
-// ESTADÍSTICAS POBLACIONALES — basadas en historial real
+// ESTADISTICAS POBLACIONALES — basadas en historial real
 // ─────────────────────────────────────────────────────────────────────
 
 const calcularEstadisticasGrupo = (usuarios) => {
     const adherencias = [];
     let usuariosConDatos = 0;
+    let registrosUltimos6Dias = 0;
 
     usuarios.forEach(usuario => {
-        const hist = construirHistorial(usuario.tomas||[], 12);
+        const registros = contarRegistrosUltimos6Dias(usuario.tomas||[]);
+        registrosUltimos6Dias += registros;
+        const hist = construirHistorial(usuario.tomas||[], 6);
         const a6d  = calcularAdherenciaDesdeHistorial(hist);
-        // Solo contar si tiene al menos 1 día con dato real (no todos 0 por defecto)
-        const tieneDatos = hist.some(v => v === 1) ||
-    extraerRespuestasFarmaco(usuario.tomas||[]).length > 0;
-        if (tieneDatos) {
+        // Solo contar si tiene al menos 1 registro en los últimos 6 días
+        if (registros > 0) {
             adherencias.push(a6d?.porcentaje ?? 0);
             usuariosConDatos++;
         }
@@ -105,7 +113,8 @@ const calcularEstadisticasGrupo = (usuarios) => {
     if (!adherencias.length) {
         return { totalUsuarios:usuarios.length, usuariosConDatos:0,
             adherenciaPromedio:'0.0', mediana:'0.0', desviacionEstandar:'0.0',
-            adherenciaAlta:0, adherenciaMedia:0, adherenciaBaja:0, adherencias };
+            adherenciaAlta:0, adherenciaMedia:0, adherenciaBaja:0, adherencias,
+            registrosUltimos6Dias };
     }
 
     const promedio = adherencias.reduce((a,b)=>a+b,0) / adherencias.length;
@@ -124,6 +133,7 @@ const calcularEstadisticasGrupo = (usuarios) => {
         adherenciaAlta:  adherencias.filter(a=>a>=80).length,
         adherenciaMedia: adherencias.filter(a=>a>=60&&a<80).length,
         adherenciaBaja:  adherencias.filter(a=>a<60).length,
+        registrosUltimos6Dias,
         adherencias,
     };
 };
@@ -183,7 +193,7 @@ const ComparadorAdherencia = ({ usuarios }) => {
                             <div>
                                 <p style={{margin:0,fontWeight:700,fontSize:'0.95rem',color:C.gray900}}>Comparación de Adherencia</p>
                                 <p style={{margin:0,fontSize:'0.72rem',color:C.gray500}}>
-                                    Últimos 6 días · {analysis?.periodoStr??'…'} · Usuario A vs Usuario B
+                                    Ultimos 6 dias · {analysis?.periodoStr??'...'} · Usuario A vs Usuario B
                                 </p>
                             </div>
                         </div>
@@ -215,16 +225,17 @@ const ComparadorAdherencia = ({ usuarios }) => {
                                         <div key={label} style={{padding:'1.5rem',border:`1px solid ${C.gray200}`,borderRadius:'10px',background:C.white,textAlign:'center'}}>
                                             <p style={{margin:'0 0 0.75rem',fontSize:'0.85rem',fontWeight:700,color:C.gray700}}>{label}</p>
                                             <p style={{margin:0,fontSize:'2.75rem',fontWeight:800,color:color}}>{pct.toFixed(1)}%</p>
-                                            <p style={{margin:'0.5rem 0 0',fontSize:'0.78rem',color:C.gray500}}>Adherencia promedio últimos 6 días</p>
+                                            <p style={{margin:'0.5rem 0 0',fontSize:'0.78rem',color:C.gray500}}>Adherencia promedio ultimos 6 dias</p>
+                                            <p style={{margin:'0.25rem 0 0',fontSize:'0.72rem',color:C.gray500}}>{stats.registrosUltimos6Dias} registros en TomasDiarias</p>
                                         </div>
                                     );
                                 })}
                             </div>
 
                             <div style={{padding:'1.25rem',border:`1px solid ${C.gray200}`,borderRadius:'10px',background:C.gray50}}>
-                                <p style={{margin:'0 0 0.75rem',fontSize:'0.78rem',fontWeight:700,color:C.gray700,textTransform:'uppercase',letterSpacing:'0.06em'}}>Comparación de adherencia</p>
+                                <p style={{margin:'0 0 0.75rem',fontSize:'0.78rem',fontWeight:700,color:C.gray700,textTransform:'uppercase',letterSpacing:'0.06em'}}>Comparacion de adherencia</p>
                                 <p style={{margin:'0',fontSize:'1rem',color:C.gray900}}>
-                                    Usuario A tiene <strong>{(parseFloat(analysis.statsA.adherenciaPromedio)-parseFloat(analysis.statsB.adherenciaPromedio)).toFixed(1)}%</strong> {parseFloat(analysis.statsA.adherenciaPromedio) >= parseFloat(analysis.statsB.adherenciaPromedio) ? 'más' : 'menos'} adherencia que Usuario B.
+                                    Usuario A tiene <strong>{(parseFloat(analysis.statsA.adherenciaPromedio)-parseFloat(analysis.statsB.adherenciaPromedio)).toFixed(1)}%</strong> {parseFloat(analysis.statsA.adherenciaPromedio) >= parseFloat(analysis.statsB.adherenciaPromedio) ? 'mas' : 'menos'} adherencia que Usuario B.
                                 </p>
                             </div>
 
