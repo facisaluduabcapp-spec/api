@@ -78,7 +78,11 @@ const construirHistorial = (tomas, n = 12) => {
         porFecha[r.fecha] = porFecha[r.fecha]===1 ? 1 : (esSi(r.respuesta)?1:0);
     });
     const hist = [];
-    for (let i=n; i>=1; i--) hist.push(porFecha[offsetDate(i)]??0);
+    if (n === 6) {
+        for (let i = n - 1; i >= 0; i--) hist.push(porFecha[offsetDate(i)] ?? 0);
+    } else {
+        for (let i = n; i >= 1; i--) hist.push(porFecha[offsetDate(i)] ?? 0);
+    }
     return hist;
 };
 
@@ -101,8 +105,8 @@ const construirHistorialReciente = (tomas, n = 6) => {
 
 const contarRegistrosUltimos6Dias = (tomas) => {
     if (!Array.isArray(tomas)) return 0;
-    const desde = offsetDate(6);
-    const hasta = offsetDate(1);
+    const desde = offsetDate(5);
+    const hasta = offsetDate(0);
     return tomas.filter(d => {
         const fecha = toDateStr(d.fecha || d.id);
         return fecha && fecha >= desde && fecha <= hasta;
@@ -207,7 +211,7 @@ const ComparadorAdherencia = ({ usuarios }) => {
                     statsA: sA,
                     statsB: sB,
                     totalUsuarios: usuarios.length,
-                    periodoStr: `${offsetDate(6)} → ${offsetDate(1)}`,
+                    periodoStr: `${offsetDate(5)} → ${offsetDate(0)}`,
                 });
             } catch(e) { console.error('ComparadorAdherencia error', e); }
             finally    { setAnalyzing(false); }
