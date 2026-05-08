@@ -1,16 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
+import { db, auth } from './firebase';
 import { 
-    db,
-    auth,
     collection, 
     getDocs, 
     doc, 
-    getDoc, 
+    getDoc
+} from 'firebase/firestore';
+import { 
     signInWithEmailAndPassword, 
     onAuthStateChanged, 
     signOut 
-} from './firebase/firebase'; // <--- Ajusta la ruta si es necesario
+} from 'firebase/auth';
 
 // --- OTRAS IMPORTACIONES (SIN CAMBIOS) ---
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -24,6 +25,8 @@ import {
 import RenderDataList from './components/RenderDataList';
 import LoginPage from './components/LoginPage';
 import AdminPanel from './components/AdminPanel';
+import AdminDashboard from './components/Admindashboard';
+import TicketsPanel from './components/TicketsPanel';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -83,7 +86,7 @@ function App() {
             </div>
         );
     }
-    return <AdminPanel currentUser={user} />;
+    return <AdminDashboard/>;
 }
 
 export default App;
