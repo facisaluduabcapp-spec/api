@@ -341,7 +341,12 @@ const handleCreate = async () => {
             const res = await fetch(`${API}/api/delete-admin`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ uid: admin.uid }),
+                body: JSON.stringify({
+    email: newEmail.trim(),
+    password: newPassword,
+    role: newRole,         // ← debe estar
+    createdBy: currentUid, // ← debe estar
+}),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Error al eliminar');

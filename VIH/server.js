@@ -17,11 +17,10 @@ app.use(cors({
 }));
 
 app.use(express.json());
-
 // ── Crear admin ─────────────────────────────────────────────
 app.post('/api/create-admin', async (req, res) => {
-    const { email, password } = req.body;
-    
+    const { email, password, role, createdBy } = req.body; // ← agrega role y createdBy
+
     if (!email || !password) {
         return res.status(400).json({ error: 'Email y password son obligatorios' });
     }
@@ -30,25 +29,32 @@ app.post('/api/create-admin', async (req, res) => {
     }
 
     try {
-        const { auth } = getAdminServices();
+        const { auth, db } = getAdminServices(); // ← agrega db
+
         const userRecord = await auth.createUser({ email, password });
-        
-        console.log('✅ Usuario creado:', userRecord.uid);
-        return res.status(200).json({ 
-            success: true, 
-            uid: userRecord.uid, 
-            email: userRecord.email 
+
+        // ← ESTO ES LO QUE FALTABA
+        await db.collection('admins').doc(userRecord.uid).set({
+            email: email.trim(),
+            role: role || 'asignador',
+            createdAt: new Date().toISOString(),
+            createdBy: createdBy || null,
+        });
+
+        console.log('✅ Auth + Firestore OK:', userRecord.uid);
+        return res.status(200).json({
+            success: true,
+            uid: userRecord.uid,
+            email: userRecord.email,
         });
     } catch (error) {
         console.error('❌ create-admin error:', error.code, error.message);
-        
         if (error.code === 'auth/email-already-exists') {
             return res.status(409).json({ error: 'El correo ya existe' });
         }
         return res.status(500).json({ error: error.message });
     }
 });
-
 // ── Eliminar admin ──────────────────────────────────────────
 app.post('/api/delete-admin', async (req, res) => {
     const { uid } = req.body;
