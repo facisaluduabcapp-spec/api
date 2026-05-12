@@ -225,9 +225,6 @@ export default function AdminManagerPanel({ currentRole, currentUid }) {
         if (currentRole === 'admin') return targetRole === 'asignador';
         return false;
     };
-
-    // ── CREAR ──────────────────────────────────────────────
-   // ── CREAR ──────────────────────────────────────────────
 const handleCreate = async () => {
     if (!newEmail.trim() || !newPassword.trim()) {
         toast.warning('Completa el correo y la contraseña.');
@@ -249,13 +246,16 @@ const handleCreate = async () => {
         const res = await fetch(`${API}/api/create-admin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uid: admin.uid }),
+            body: JSON.stringify({
+                email: newEmail.trim(),
+                password: newPassword,
+                role: newRole,
+                createdBy: currentUid,
+            }),
         });
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Error al crear usuario');
-
-        // ← ELIMINA el setDoc que estaba aquí, ya lo hace el backend
 
         toast.update(toastId, {
             render: `✅ ${newEmail} creado correctamente`,
@@ -276,7 +276,6 @@ const handleCreate = async () => {
         setCreating(false);
     }
 };
-
     // ── CAMBIAR ROL ────────────────────────────────────────
     const handleSaveRole = async (uid) => {
         if (!canManage(editingRole)) {
