@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import TicketsPanel from './TicketsPanel';
 import UpdateTicketsPanel from './UpdateTicketsPanel';
-import AdminPanel from './AdminPanel';                          // ← agregar
+import AdminPanel from './AdminPanel';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserPlus, faPenToSquare, faUsers } from '@fortawesome/free-solid-svg-icons'; // ← agregar faUsers
+import { faUserPlus, faPenToSquare, faUsers, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
+import { auth } from '../firebase/firebase';
+import { signOut } from 'firebase/auth';
 
 const tabs = [
     { key: 'registro',      label: 'Solicitudes de registro',     icon: faUserPlus },
     { key: 'actualizacion', label: 'Solicitudes de actualización', icon: faPenToSquare },
-    { key: 'panel',         label: 'Panel de usuarios',            icon: faUsers },   // ← agregar
+    { key: 'panel',         label: 'Panel de usuarios',            icon: faUsers },
 ];
 
 const s = {
@@ -17,12 +19,18 @@ const s = {
         minHeight: '100vh',
         backgroundColor: '#f9fafb',
     },
-    tabBar: {
+    topBar: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#fff',
+        borderBottom: '2px solid #e5e7eb',
+        paddingLeft: '2rem',
+        paddingRight: '1.5rem',
+    },
+    tabRow: {
         display: 'flex',
         gap: '0',
-        borderBottom: '2px solid #e5e7eb',
-        backgroundColor: '#fff',
-        paddingLeft: '2rem',
     },
     tab: (active) => ({
         display: 'flex',
@@ -40,6 +48,20 @@ const s = {
         cursor: 'pointer',
         transition: 'all 0.15s',
     }),
+    logoutBtn: {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.4rem',
+        padding: '0.5rem 1rem',
+        borderRadius: '6px',
+        border: '1px solid #e4e4e7',
+        background: '#fff',
+        color: '#3f3f46',
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: '0.8rem',
+        fontWeight: '600',
+        cursor: 'pointer',
+    },
     content: {
         padding: '0',
     },
@@ -55,17 +77,25 @@ export default function AdminDashboard({ role, currentUser }) {
 
     return (
         <div style={s.page}>
-            <div style={s.tabBar}>
-                {visibleTabs.map(tab => (
-                    <button
-                        key={tab.key}
-                        style={s.tab(activeTab === tab.key)}
-                        onClick={() => setActiveTab(tab.key)}
-                    >
-                        <FontAwesomeIcon icon={tab.icon} />
-                        {tab.label}
-                    </button>
-                ))}
+            {/* Tab bar + botón cerrar sesión */}
+            <div style={s.topBar}>
+                <div style={s.tabRow}>
+                    {visibleTabs.map(tab => (
+                        <button
+                            key={tab.key}
+                            style={s.tab(activeTab === tab.key)}
+                            onClick={() => setActiveTab(tab.key)}
+                        >
+                            <FontAwesomeIcon icon={tab.icon} />
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                <button style={s.logoutBtn} onClick={() => signOut(auth)}>
+                    <FontAwesomeIcon icon={faSignOutAlt} />
+                    Cerrar sesión
+                </button>
             </div>
 
             <div style={s.content}>
