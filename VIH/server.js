@@ -18,22 +18,10 @@ app.use(cors({
 
 app.use(express.json());
 
-await db.collection('admins').doc(userRecord.uid).set({
-    email: email.trim(),
-    role: req.body.role || 'asignador',   // recibe el rol desde el frontend
-    createdAt: new Date().toISOString(),
-    createdBy: req.body.createdBy || null,
-});
-
-return res.status(200).json({ 
-    success: true, 
-    uid: userRecord.uid, 
-    email: userRecord.email 
-});
 // ── Crear admin ─────────────────────────────────────────────
 app.post('/api/create-admin', async (req, res) => {
-    const { email, password, role, createdBy } = req.body;  // ← agrega role y createdBy
-
+    const { email, password } = req.body;
+    
     if (!email || !password) {
         return res.status(400).json({ error: 'Email y password son obligatorios' });
     }
@@ -42,18 +30,10 @@ app.post('/api/create-admin', async (req, res) => {
     }
 
     try {
-        const { auth, db } = getAdminServices();
+        const { auth } = getAdminServices();
         const userRecord = await auth.createUser({ email, password });
-
-        // ← NUEVO: el backend escribe en Firestore, no el frontend
-        await db.collection('admins').doc(userRecord.uid).set({
-            email: email.trim(),
-            role: role || 'asignador',
-            createdAt: new Date().toISOString(),
-            createdBy: createdBy || null,
-        });
-
-        console.log('✅ Usuario y doc Firestore creados:', userRecord.uid);
+        
+        console.log('✅ Usuario creado:', userRecord.uid);
         return res.status(200).json({ 
             success: true, 
             uid: userRecord.uid, 
@@ -61,6 +41,7 @@ app.post('/api/create-admin', async (req, res) => {
         });
     } catch (error) {
         console.error('❌ create-admin error:', error.code, error.message);
+        
         if (error.code === 'auth/email-already-exists') {
             return res.status(409).json({ error: 'El correo ya existe' });
         }

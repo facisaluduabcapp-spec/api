@@ -8,7 +8,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { ToastContainer, toast } from 'react-toastify';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5173';
 
 const ROLE_CONFIG = {
     superadmin: { label: 'Superadmin', color: '#7c3aed', bg: '#ede9fe' },
@@ -227,89 +227,57 @@ export default function AdminManagerPanel({ currentRole, currentUid }) {
     };
 
     // ── CREAR ──────────────────────────────────────────────
-    const handleCreate = async () => {
-
+   // ── CREAR ──────────────────────────────────────────────
+const handleCreate = async () => {
     if (!newEmail.trim() || !newPassword.trim()) {
         toast.warning('Completa el correo y la contraseña.');
         return;
     }
-
     if (newPassword.length < 6) {
         toast.warning('La contraseña debe tener al menos 6 caracteres.');
         return;
     }
-
     if (!assignableRoles.includes(newRole)) {
         toast.error('No tienes permiso para crear ese rol.');
         return;
     }
 
     setCreating(true);
-
     const toastId = toast.loading('Creando usuario...');
 
     try {
-
-        let res;
-
-        try {
-
-            res = await fetch(`${API}/api/create-admin`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email: newEmail.trim(),
-                    password: newPassword,
-                }),
-            });
-
-        } catch (networkError) {
-
-            throw new Error(
-                'No se pudo conectar con el servidor API.'
-            );
-        }
+        const res = await fetch(`${API}/api/create-admin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: newEmail.trim(),
+                password: newPassword,
+                role: newRole,        // ← nuevo
+                createdBy: currentUid, // ← nuevo
+            }),
+        });
 
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al crear usuario');
 
-        if (!res.ok) {
-            throw new Error(data.error || 'Error al crear usuario');
-        }
-
-        // Firestore
-        await setDoc(doc(db, 'admins', data.uid), {
-            email: newEmail.trim(),
-            role: newRole,
-            createdAt: new Date().toISOString(),
-            createdBy: currentUid,
-        });
+        // ← ELIMINA el setDoc que estaba aquí, ya lo hace el backend
 
         toast.update(toastId, {
             render: `✅ ${newEmail} creado correctamente`,
-            type: 'success',
-            isLoading: false,
-            autoClose: 3000,
+            type: 'success', isLoading: false, autoClose: 3000,
         });
 
         setNewEmail('');
         setNewPassword('');
         setNewRole('asignador');
-
         fetchAdmins();
 
     } catch (err) {
-
         toast.update(toastId, {
             render: `❌ ${err.message}`,
-            type: 'error',
-            isLoading: false,
-            autoClose: 4000,
+            type: 'error', isLoading: false, autoClose: 4000,
         });
-
     } finally {
-
         setCreating(false);
     }
 };
