@@ -1,91 +1,70 @@
+// api/create-admin.js
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 
 const ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://localhost:3000',
-    'https://tu-frontend.vercel.app', // cámbialo por tu dominio real
+    'https://api-ten-delta-47.vercel.app',
 ];
 
-let auth;
+let auth, db;
 
 function initializeFirebase() {
     if (!getApps().length) {
-        const projectId = process.env.FIREBASE_PROJECT_ID;
-        const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
         const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-        if (!projectId || !clientEmail || !privateKey) {
-            throw new Error('Faltan variables de entorno Firebase');
-        }
-
         initializeApp({
             credential: cert({
-                projectId,
-                clientEmail,
-                privateKey: privateKey.replace(/\\n/g, '\n'),
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: privateKey.includes('\\n')
+                    ? privateKey.replace(/\\n/g, '\n')
+                    : privateKey,
             }),
         });
     }
-
     auth = getAuth();
+    db = getFirestore();
 }
 
-// 🔥 CORS FIX REAL
 function setCorsHeaders(req, res) {
     const origin = req.headers.origin;
-
     if (ALLOWED_ORIGINS.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     } else {
-        // fallback importante para evitar bloqueos silenciosos
         res.setHeader('Access-Control-Allow-Origin', '*');
     }
-
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
 export default async function handler(req, res) {
     setCorsHeaders(req, res);
+    if (req.method === 'OPTIONS') return res.status(204).end();
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
 
-    // 🔥 PRE-FLIGHT REQUEST (ESTO ES CLAVE)
-    if (req.method === 'OPTIONS') {
-        return res.status(204).end();
+    const { email, password, role, createdBy } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email y password son obligatorios' });
     }
-
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Método no permitido' });
+    if (password.length < 6) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
     }
 
     try {
         initializeFirebase();
 
-        const { email, password } = req.body;
+        const userRecord = await auth.createUser({ email, password });
 
-        if (!email || !password) {
-            return res.status(400).json({
-                error: 'Email y password son obligatorios'
-            });
-        }
-
-        if (password.length < 6) {
-            return res.status(400).json({
-                error: 'La contraseña debe tener al menos 6 caracteres'
-            });
-        }
-
-        console.log('🚀 Creando admin:', email);
-
-        const userRecord = await auth.createUser({
-            email,
-            password,
-            emailVerified: false,
-            disabled: false,
+        // ← Esto es lo que faltaba
+        await db.collection('admins').doc(userRecord.uid).set({
+            email: email.trim(),
+            role: role || 'asignador',
+            createdAt: new Date().toISOString(),
+            createdBy: createdBy || null,
         });
-
-        console.log('✅ Usuario creado:', userRecord.uid);
 
         return res.status(200).json({
             success: true,
@@ -94,17 +73,9 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        console.error('❌ Error:', error);
-
         if (error.code === 'auth/email-already-exists') {
-            return res.status(409).json({
-                error: 'El correo ya existe'
-            });
+            return res.status(409).json({ error: 'El correo ya existe' });
         }
-
-        return res.status(500).json({
-            error: 'Error interno del servidor',
-            details: error.message,
-        });
+        return res.status(500).json({ error: error.message });
     }
 }

@@ -8,7 +8,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { ToastContainer, toast } from 'react-toastify';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API = import.meta.env.VITE_API_URL || '';
 
 const ROLE_CONFIG = {
     superadmin: { label: 'Superadmin', color: '#7c3aed', bg: '#ede9fe' },
@@ -249,12 +249,7 @@ const handleCreate = async () => {
         const res = await fetch(`${API}/api/create-admin`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email: newEmail.trim(),
-                password: newPassword,
-                role: newRole,        // ← nuevo
-                createdBy: currentUid, // ← nuevo
-            }),
+            body: JSON.stringify({ uid: admin.uid }),
         });
 
         const data = await res.json();
