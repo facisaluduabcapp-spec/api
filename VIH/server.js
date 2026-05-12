@@ -32,6 +32,7 @@ app.post('/api/create-admin', async (req, res) => {
         const { auth, db } = getAdminServices(); // ← agrega db
 
         const userRecord = await auth.createUser({ email, password });
+            console.log('✅ Auth OK:', userRecord.uid); 
 
         // ← ESTO ES LO QUE FALTABA
         await db.collection('admins').doc(userRecord.uid).set({
@@ -42,6 +43,7 @@ app.post('/api/create-admin', async (req, res) => {
         });
 
         console.log('✅ Auth + Firestore OK:', userRecord.uid);
+         console.log('✅ Firestore OK');
         return res.status(200).json({
             success: true,
             uid: userRecord.uid,

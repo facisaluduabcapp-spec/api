@@ -8,7 +8,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { ToastContainer, toast } from 'react-toastify';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5173';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const ROLE_CONFIG = {
     superadmin: { label: 'Superadmin', color: '#7c3aed', bg: '#ede9fe' },
