@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { getAdminServices } from './firebase-admin.js';
+import { getAdminServices } from './api/firebase-admin.js';
 
 const app = express();
 
@@ -17,22 +17,9 @@ app.use(cors({
 }));
 
 app.use(express.json());
-
-await db.collection('admins').doc(userRecord.uid).set({
-    email: email.trim(),
-    role: req.body.role || 'asignador',   // recibe el rol desde el frontend
-    createdAt: new Date().toISOString(),
-    createdBy: req.body.createdBy || null,
-});
-
-return res.status(200).json({ 
-    success: true, 
-    uid: userRecord.uid, 
-    email: userRecord.email 
-});
 // ── Crear admin ─────────────────────────────────────────────
 app.post('/api/create-admin', async (req, res) => {
-    const { email, password, role, createdBy } = req.body;  // ← agrega role y createdBy
+    const { email, password, role, createdBy } = req.body; // ← agrega role y createdBy
 
     if (!email || !password) {
         return res.status(400).json({ error: 'Email y password son obligatorios' });
@@ -42,10 +29,12 @@ app.post('/api/create-admin', async (req, res) => {
     }
 
     try {
-        const { auth, db } = getAdminServices();
-        const userRecord = await auth.createUser({ email, password });
+        const { auth, db } = getAdminServices(); // ← agrega db
 
-        // ← NUEVO: el backend escribe en Firestore, no el frontend
+        const userRecord = await auth.createUser({ email, password });
+            console.log('✅ Auth OK:', userRecord.uid); 
+
+        // ← ESTO ES LO QUE FALTABA
         await db.collection('admins').doc(userRecord.uid).set({
             email: email.trim(),
             role: role || 'asignador',
@@ -53,11 +42,12 @@ app.post('/api/create-admin', async (req, res) => {
             createdBy: createdBy || null,
         });
 
-        console.log('✅ Usuario y doc Firestore creados:', userRecord.uid);
-        return res.status(200).json({ 
-            success: true, 
-            uid: userRecord.uid, 
-            email: userRecord.email 
+        console.log('✅ Auth + Firestore OK:', userRecord.uid);
+         console.log('✅ Firestore OK');
+        return res.status(200).json({
+            success: true,
+            uid: userRecord.uid,
+            email: userRecord.email,
         });
     } catch (error) {
         console.error('❌ create-admin error:', error.code, error.message);
@@ -67,7 +57,6 @@ app.post('/api/create-admin', async (req, res) => {
         return res.status(500).json({ error: error.message });
     }
 });
-
 // ── Eliminar admin ──────────────────────────────────────────
 app.post('/api/delete-admin', async (req, res) => {
     const { uid } = req.body;
