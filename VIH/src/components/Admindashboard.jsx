@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import TicketsPanel from './TicketsPanel';           // tickets de registro (ya existe)
-import UpdateTicketsPanel from './UpdateTicketsPanel'; // tickets de actualización (por crear)
+import TicketsPanel from './TicketsPanel';
+import UpdateTicketsPanel from './UpdateTicketsPanel';
+import AdminPanel from './AdminPanel';                          // ← agregar
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserPlus, faPenToSquare } from '@fortawesome/free-solid-svg-icons';
+import { faUserPlus, faPenToSquare, faUsers } from '@fortawesome/free-solid-svg-icons'; // ← agregar faUsers
 
 const tabs = [
-    { key: 'registro',      label: 'Solicitudes de registro',      icon: faUserPlus },
-    { key: 'actualizacion', label: 'Solicitudes de actualización',  icon: faPenToSquare },
+    { key: 'registro',      label: 'Solicitudes de registro',     icon: faUserPlus },
+    { key: 'actualizacion', label: 'Solicitudes de actualización', icon: faPenToSquare },
+    { key: 'panel',         label: 'Panel de usuarios',            icon: faUsers },   // ← agregar
 ];
 
 const s = {
@@ -43,17 +45,18 @@ const s = {
     },
 };
 
-// Reemplaza el return <TicketsPanel /> en App.jsx por:
-// return <AdminDashboard />;
+export default function AdminDashboard({ role, currentUser }) {
 
-export default function AdminDashboard() {
+    const visibleTabs = role === 'asignador'
+        ? tabs.filter(t => t.key !== 'panel')
+        : tabs;
+
     const [activeTab, setActiveTab] = useState('registro');
 
     return (
         <div style={s.page}>
-            {/* Barra de pestañas */}
             <div style={s.tabBar}>
-                {tabs.map(tab => (
+                {visibleTabs.map(tab => (
                     <button
                         key={tab.key}
                         style={s.tab(activeTab === tab.key)}
@@ -65,10 +68,12 @@ export default function AdminDashboard() {
                 ))}
             </div>
 
-            {/* Contenido */}
             <div style={s.content}>
                 {activeTab === 'registro'      && <TicketsPanel />}
                 {activeTab === 'actualizacion' && <UpdateTicketsPanel />}
+                {activeTab === 'panel' && role === 'admin' && (
+                    <AdminPanel currentUser={currentUser} />
+                )}
             </div>
         </div>
     );
