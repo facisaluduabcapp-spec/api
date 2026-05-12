@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import TicketsPanel from './TicketsPanel';
 import UpdateTicketsPanel from './UpdateTicketsPanel';
 import AdminPanel from './AdminPanel';
+import AdminManagerPanel from './AdminManagerPanel';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUserPlus, faPenToSquare, faUsers, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
 import { auth } from '../firebase/firebase';
@@ -11,6 +12,7 @@ const tabs = [
     { key: 'registro',      label: 'Solicitudes de registro',     icon: faUserPlus },
     { key: 'actualizacion', label: 'Solicitudes de actualización', icon: faPenToSquare },
     { key: 'panel',         label: 'Panel de usuarios',            icon: faUsers },
+    { key: 'admins',        label: 'Administradores',              icon: faUserShield },
 ];
 
 const s = {
@@ -69,12 +71,13 @@ const s = {
 
 export default function AdminDashboard({ role, currentUser }) {
 
-    const visibleTabs = role === 'asignador'
-        ? tabs.filter(t => t.key !== 'panel')
-        : tabs;
+const visibleTabs = role === 'asignador'
+    ? tabs.filter(t => t.key !== 'panel' && t.key !== 'admins')
+    : tabs;
 
-    const [activeTab, setActiveTab] = useState('registro');
-
+  {activeTab === 'admins' && (role === 'admin' || role === 'superadmin') && (
+    <AdminManagerPanel currentRole={role} currentUid={currentUser.uid} />
+)}
     return (
         <div style={s.page}>
             {/* Tab bar + botón cerrar sesión */}

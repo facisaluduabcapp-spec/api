@@ -557,31 +557,6 @@ const tomas = tomasSnap.docs.map(doc => ({
     <div style={{ minHeight: '100vh', background: C.gray50, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <ToastContainer />
 
-      {/* ── Top bar ── */}
-      <header style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: C.white,
-        borderBottom: `1px solid ${C.gray200}`,
-        padding: '0 2rem',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        height: '64px',
-        boxShadow: '0 1px 8px rgba(0,0,0,0.04)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
-          <img src={Escudo} alt="Escudo" style={{ height: '36px', width: 'auto' }} />
-          <div style={{ borderLeft: `2px solid ${C.gray200}`, paddingLeft: '0.9rem' }}>
-            <p style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: C.greenDark, lineHeight: 1.2 }}>
-              Panel de Administración
-            </p>
-            <p style={{ margin: 0, fontSize: '0.72rem', color: C.gray500 }}>{currentUser.email}</p>
-          </div>
-        </div>
-        <button onClick={() => signOut(auth)} style={{ ...btnOutline }}>
-          <FontAwesomeIcon icon={faSignOutAlt} style={{ fontSize: '0.8rem' }} />
-          Cerrar sesión
-        </button>
-      </header>
-
       {/* ── Main content ── */}
       <main style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem' }}>
 
