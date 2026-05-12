@@ -8,7 +8,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { ToastContainer, toast } from 'react-toastify';
 
-const API = 'https://api-ten-delta-47.vercel.app';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const ROLE_CONFIG = {
     superadmin: { label: 'Superadmin', color: '#7c3aed', bg: '#ede9fe' },
@@ -228,57 +228,91 @@ export default function AdminManagerPanel({ currentRole, currentUid }) {
 
     // ── CREAR ──────────────────────────────────────────────
     const handleCreate = async () => {
-        if (!newEmail.trim() || !newPassword.trim()) {
-            toast.warning('Completa el correo y la contraseña.');
-            return;
-        }
-        if (newPassword.length < 6) {
-            toast.warning('La contraseña debe tener al menos 6 caracteres.');
-            return;
-        }
-        if (!assignableRoles.includes(newRole)) {
-            toast.error('No tienes permiso para crear ese rol.');
-            return;
-        }
 
-        setCreating(true);
-        const toastId = toast.loading('Creando usuario...');
+    if (!newEmail.trim() || !newPassword.trim()) {
+        toast.warning('Completa el correo y la contraseña.');
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        toast.warning('La contraseña debe tener al menos 6 caracteres.');
+        return;
+    }
+
+    if (!assignableRoles.includes(newRole)) {
+        toast.error('No tienes permiso para crear ese rol.');
+        return;
+    }
+
+    setCreating(true);
+
+    const toastId = toast.loading('Creando usuario...');
+
+    try {
+
+        let res;
+
         try {
-            // 1. Crear en Firebase Auth via API
-            const res = await fetch(`${API}/api/create-admin`, {
+
+            res = await fetch(`${API}/api/create-admin`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: newEmail.trim(), password: newPassword }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Error al crear en Auth');
-
-            // 2. Crear documento en /admins
-            await setDoc(doc(db, 'admins', data.uid), {
-                email: newEmail.trim(),
-                role: newRole,
-                createdAt: new Date().toISOString(),
-                createdBy: currentUid,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: newEmail.trim(),
+                    password: newPassword,
+                }),
             });
 
-            toast.update(toastId, {
-                render: `✅ ${newEmail} creado como ${ROLE_CONFIG[newRole].label}`,
-                type: 'success', isLoading: false, autoClose: 3000,
-            });
+        } catch (networkError) {
 
-            setNewEmail('');
-            setNewPassword('');
-            setNewRole('asignador');
-            fetchAdmins();
-        } catch (err) {
-            toast.update(toastId, {
-                render: `❌ ${err.message}`,
-                type: 'error', isLoading: false, autoClose: 4000,
-            });
-        } finally {
-            setCreating(false);
+            throw new Error(
+                'No se pudo conectar con el servidor API.'
+            );
         }
-    };
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.error || 'Error al crear usuario');
+        }
+
+        // Firestore
+        await setDoc(doc(db, 'admins', data.uid), {
+            email: newEmail.trim(),
+            role: newRole,
+            createdAt: new Date().toISOString(),
+            createdBy: currentUid,
+        });
+
+        toast.update(toastId, {
+            render: `✅ ${newEmail} creado correctamente`,
+            type: 'success',
+            isLoading: false,
+            autoClose: 3000,
+        });
+
+        setNewEmail('');
+        setNewPassword('');
+        setNewRole('asignador');
+
+        fetchAdmins();
+
+    } catch (err) {
+
+        toast.update(toastId, {
+            render: `❌ ${err.message}`,
+            type: 'error',
+            isLoading: false,
+            autoClose: 4000,
+        });
+
+    } finally {
+
+        setCreating(false);
+    }
+};
 
     // ── CAMBIAR ROL ────────────────────────────────────────
     const handleSaveRole = async (uid) => {

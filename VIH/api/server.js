@@ -4,7 +4,7 @@ import express from 'express';
 import cors from 'cors';
 
 // Importa los handlers normalmente (la protección ahora estará dentro de ellos)
-import createAdmin from './created-admin.js';
+import createAdmin from './create-admin.js';
 import deleteUser from './delete-user.js';
 import deleteAdmin from './delete-admin.js';
 
