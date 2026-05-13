@@ -72,8 +72,9 @@ function App() {
 
     if (!user) return <LoginPage />;
 
-   if (role === 'admin') return <AdminDashboard role={role} currentUser={user} />;
-if (role === 'asignador') return <AdminDashboard role={role} currentUser={user} />;
+if (role === 'admin' || role === 'superadmin' || role === 'asignador') {
+    return <AdminDashboard role={role} currentUser={user} />;
+}
     // Cualquier otra cuenta autenticada sin rol reconocido
     return (
         <div style={{ textAlign: 'center', padding: '3rem' }}>
