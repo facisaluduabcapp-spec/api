@@ -36,9 +36,10 @@ import { saveAs } from 'file-saver';
 function App() {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [role, setRole] = useState(null); // 'admin' | 'asignador' | null
+    const [role, setRole] = useState(null);
+    const [accessDenied, setAccessDenied] = useState(false); // ← faltaba
 
-    useEffect(() => {
+    useEffect(() => { // ← faltaba el useEffect
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             setUser(user);
             if (user) {
@@ -48,17 +49,19 @@ function App() {
                         setRole(adminDoc.data()?.role || null);
                     } else {
                         setRole(null);
+                        setTimeout(() => setAccessDenied(true), 10000);
                     }
                 } catch (error) {
                     console.error("Error al verificar rol:", error);
                     setRole(null);
+                    setTimeout(() => setAccessDenied(true), 10000);
                 }
             } else {
                 setRole(null);
             }
             setLoading(false);
         });
-        return () => unsubscribe();
+        return () => unsubscribe(); // ← cleanup también faltaba
     }, []);
 
     if (loading) {
@@ -72,10 +75,19 @@ function App() {
 
     if (!user) return <LoginPage />;
 
-if (role === 'admin' || role === 'superadmin' || role === 'asignador') {
-    return <AdminDashboard role={role} currentUser={user} />;
-}
-    // Cualquier otra cuenta autenticada sin rol reconocido
+    if (role === 'admin' || role === 'superadmin' || role === 'asignador') {
+        return <AdminDashboard role={role} currentUser={user} />;
+    }
+
+    if (!accessDenied) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', gap: '1rem' }}>
+                <FontAwesomeIcon icon={faSpinner} spin style={{ fontSize: '1.5rem', color: '#6b7280' }} />
+                <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>Verificando permisos...</p>
+            </div>
+        );
+    }
+
     return (
         <div style={{ textAlign: 'center', padding: '3rem' }}>
             <div style={{ padding: '2rem', background: '#f8d7da', color: '#842029', borderRadius: '8px', maxWidth: '500px', margin: '0 auto' }}>
@@ -95,4 +107,5 @@ if (role === 'admin' || role === 'superadmin' || role === 'asignador') {
         </div>
     );
 }
+
 export default App;

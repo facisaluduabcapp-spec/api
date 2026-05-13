@@ -191,10 +191,6 @@ export default function AdminManagerPanel({ currentRole, currentUid }) {
     const [newPassword, setNewPassword] = useState('');
     const [newRole, setNewRole] = useState('asignador');
 
-    // Edición de rol inline
-    const [editingUid, setEditingUid] = useState(null);
-    const [editingRole, setEditingRole] = useState('');
-    const [savingRole, setSavingRole] = useState(false);
 
     const fetchAdmins = async () => {
         setLoading(true);
@@ -460,44 +456,14 @@ const handleCreate = async () => {
 
                             {/* Rol + acciones */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                {editingUid === admin.uid ? (
-                                    <>
-                                        <select
-                                            style={s.select}
-                                            value={editingRole}
-                                            onChange={e => setEditingRole(e.target.value)}
-                                        >
-                                            {assignableRoles.map(r => (
-                                                <option key={r} value={r}>{ROLE_CONFIG[r].label}</option>
-                                            ))}
-                                        </select>
-                                        <button style={s.btnSave} onClick={() => handleSaveRole(admin.uid)} disabled={savingRole}>
-                                            <FontAwesomeIcon icon={savingRole ? faSpinner : faCheck} spin={savingRole} />
-                                        </button>
-                                        <button style={s.btnCancel} onClick={() => setEditingUid(null)}>
-                                            <FontAwesomeIcon icon={faTimes} />
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <span style={s.pill(admin.role)}>
-                                            {ROLE_CONFIG[admin.role]?.label || admin.role}
-                                        </span>
-                                        {canManage(admin.role) && admin.uid !== currentUid && (
-                                            <>
-                                                <button
-                                                    style={s.btnCancel}
-                                                    onClick={() => { setEditingUid(admin.uid); setEditingRole(admin.role); }}
-                                                >
-                                                    <FontAwesomeIcon icon={faEdit} />
-                                                </button>
-                                                <button style={s.btnDanger} onClick={() => handleDelete(admin)}>
-                                                    <FontAwesomeIcon icon={faTrash} />
-                                                </button>
-                                            </>
-                                        )}
-                                    </>
-                                )}
+                                <span style={s.pill(admin.role)}>
+    {ROLE_CONFIG[admin.role]?.label || admin.role}
+</span>
+{canManage(admin.role) && admin.uid !== currentUid && (
+    <button style={s.btnDanger} onClick={() => handleDelete(admin)}>
+        <FontAwesomeIcon icon={faTrash} />
+    </button>
+)}
                             </div>
                         </div>
                     ))
