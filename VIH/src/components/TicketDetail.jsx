@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
+import { logAction } from '../utils/adminLogs';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -355,6 +356,11 @@ export default function TicketDetail({ uid, onBack }) {
             });
 
             setDone('aprobado');
+            logAction('ticket_aprobado', {
+  ticketUid: uid,
+  nombre: datos.nombre,
+  tipoUsuario,
+});
         } catch (err) {
             console.error('Error aprobando ticket:', err);
             alert('Error al aprobar. Revisa la consola.');
@@ -363,25 +369,29 @@ export default function TicketDetail({ uid, onBack }) {
         }
     };
 
-    // ── RECHAZAR ─────────────────────────────────────────────────────
     const handleReject = async () => {
-        if (actionLoading) return;
-        setActionLoading(true);
-        try {
-            const ticketRef = doc(db, 'SolicitudesRegistro', uid);
-            await updateDoc(ticketRef, {
-                estado: 'rechazado',
-                razonRechazo: razon.trim(),
-                fechaActualizacion: serverTimestamp(),
-            });
-            setDone('rechazado');
-        } catch (err) {
-            console.error('Error rechazando ticket:', err);
-            alert('Error al rechazar. Revisa la consola.');
-        } finally {
-            setActionLoading(false);
-        }
-    };
+    if (actionLoading) return;
+    setActionLoading(true);
+    try {
+        const ticketRef = doc(db, 'SolicitudesRegistro', uid);
+        await updateDoc(ticketRef, {
+            estado: 'rechazado',
+            razonRechazo: razon.trim(),
+            fechaActualizacion: serverTimestamp(),
+        });
+        setDone('rechazado');
+        logAction('ticket_rechazado', {
+            ticketUid: uid,
+            nombre: ticket.datosPerfilPropuestos?.nombre, // ✅ así
+            razon: razon.trim() || '(sin motivo)',
+        });
+    } catch (err) {
+        console.error('Error rechazando ticket:', err);
+        alert('Error al rechazar. Revisa la consola.');
+    } finally {
+        setActionLoading(false);
+    }
+};
 
     if (loading) return <div style={s.loading}><FontAwesomeIcon icon={faSpinner} spin /> Cargando...</div>;
     if (!ticket)  return <div style={s.loading}>No se encontró el ticket.</div>;

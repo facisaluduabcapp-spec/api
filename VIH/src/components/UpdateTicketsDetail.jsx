@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { logAction } from '../utils/adminLogs';
 import {
     faArrowLeft, faCheckCircle, faTimesCircle, faSpinner, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
@@ -211,6 +212,10 @@ export default function UpdateTicketDetail({ uid, onBack }) {
             });
 
             setDone('aprobado');
+            logAction('actualizacion_aprobada', {
+    ticketUid: uid,
+    nombre: nuevo.nombre || actual.nombre,
+});
         } catch (err) {
             console.error('Error aprobando:', err);
             alert('Error al aprobar. Revisa la consola.');
@@ -230,6 +235,11 @@ export default function UpdateTicketDetail({ uid, onBack }) {
                 fechaActualizacion: serverTimestamp(),
             });
             setDone('rechazado');
+            logAction('actualizacion_rechazada', {
+    ticketUid: uid,
+    nombre: ticket.datosNuevos?.nombre || ticket.datosActuales?.nombre,
+    razon: razon.trim() || '(sin motivo)',
+});
         } catch (err) {
             console.error('Error rechazando:', err);
             alert('Error al rechazar. Revisa la consola.');
