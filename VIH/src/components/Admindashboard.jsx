@@ -24,9 +24,9 @@ export default function AdminDashboard({ role, currentUser }) {
     const [activeTab, setActiveTab] = useState('registro');
     const [menuOpen, setMenuOpen] = useState(false);
 
-    const visibleTabs = role === 'asignador'
-        ? tabs.filter(t => t.key !== 'panel' && t.key !== 'admins')
-        : tabs;
+  const visibleTabs = role === 'asignador'
+    ? tabs.filter(t => t.key !== 'panel' && t.key !== 'admins' && t.key !== 'logs')
+    : tabs;
 
     const activeTabData = visibleTabs.find(t => t.key === activeTab);
 
