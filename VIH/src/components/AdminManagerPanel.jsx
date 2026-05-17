@@ -7,7 +7,6 @@ import {
     faRefresh, faEdit, faCheck, faTimes
 } from '@fortawesome/free-solid-svg-icons';
 import { ToastContainer, toast } from 'react-toastify';
-import LogsPanel from './LogsPanel';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -472,7 +471,6 @@ const handleCreate = async () => {
                     ))
                 )}
             </div>
-            <LogsPanel/>
         </div>
     );
 }
