@@ -5,7 +5,7 @@ import {
     faLock, faEnvelope, faKey, faSignInAlt, faSpinner, faChartPie, 
     faSignOutAlt, faSearch, faUser, faChevronDown, faChevronRight, 
     faIdCard, faChartLine, faPills, faCalendarAlt, faBan,
-    faFileArchive 
+    faFileArchive, faFilePdf 
 } from '@fortawesome/free-solid-svg-icons';
 
 // Opcional: Crear un objeto que exporte todos los íconos para usarlos
@@ -29,5 +29,6 @@ export {
     faPills, 
     faCalendarAlt, 
     faBan,
-    faFileArchive
+    faFileArchive,
+    faFilePdf
 };

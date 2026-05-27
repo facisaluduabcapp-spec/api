@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { 
     FontAwesomeIcon, faChartPie, faSignOutAlt, faSearch, faSpinner,
-    faUser, faChevronDown, faChevronRight, faFileArchive, 
+    faUser, faChevronDown, faChevronRight, faFileArchive, faFilePdf,
     faIdCard, faChartLine, faPills, faCalendarAlt
 } from './Icons'; 
 import AnalizadorInteligente from './AnalizadorInteligente';
@@ -76,6 +76,83 @@ const btnOutline = {
   background: C.white,
   color: C.gray700,
   border: `1px solid ${C.gray200}`,
+};
+
+const escapeHtml = (value) => {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
+const buildPrintFrame = (contentHtml) => {
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><title>Usuarios</title><style>
+      body { font-family: system-ui, sans-serif; color: #111; padding: 24px; }
+      h1, h2, h3, th { color: #111; }
+      table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+      th, td { padding: 10px; border: 1px solid #ddd; text-align: left; vertical-align: top; }
+      th { background: #f3f4f6; }
+      .section { margin-bottom: 1.5rem; }
+    </style></head><body>${contentHtml}</body></html>`;
+  document.body.appendChild(iframe);
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } finally {
+      setTimeout(() => document.body.removeChild(iframe), 1200);
+    }
+  };
+};
+
+const buildUsuariosPdfHtml = (usuarios) => {
+  const rows = usuarios.map((usuario) => {
+    const perfil = usuario.perfiles?.[0] || {};
+    const tipo = perfil.tipoUsuario || 'N/A';
+    const email = perfil.email || perfil.correo || '-';
+    const telefono = perfil.telefono || perfil.celular || '-';
+    return `
+      <tr>
+        <td>${escapeHtml(usuario.nombre)}</td>
+        <td>${escapeHtml(usuario.userId)}</td>
+        <td>${escapeHtml(tipo)}</td>
+        <td>${escapeHtml(email)}</td>
+        <td>${escapeHtml(telefono)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="section">
+      <h1>Listado de Usuarios</h1>
+      <p>Fecha de generación: ${new Date().toLocaleString('es-MX', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' })}</p>
+      <p>Total de usuarios: ${usuarios.length}</p>
+    </div>
+    <div class="section">
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>UID</th>
+            <th>Tipo</th>
+            <th>Email</th>
+            <th>Teléfono</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
 };
 
 const btnDanger = {
@@ -347,17 +424,27 @@ const UserHeader = ({ usuario, isExpanded, toggleUser, handleDownloadAllCsv, dow
 );
 
 /* ─── GROUP HEADER ──────────────────────────────────────────────── */
-const GroupHeader = ({ title, count }) => (
+const GroupHeader = ({ title, count, onExport }) => (
   <div style={{
     display: 'flex', alignItems: 'center', gap: '0.75rem',
-    padding: '0.5rem 0', marginBottom: '0.75rem',
+    padding: '0.5rem 0', marginBottom: '0.75rem', justifyContent: 'space-between'
   }}>
-    <span style={{
-      display: 'block', width: '3px', height: '22px',
-      background: C.green, borderRadius: '2px', flexShrink: 0,
-    }} />
-    <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: C.gray900 }}>{title}</h2>
-    <span style={pill(count)}>{count}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <span style={{
+        display: 'block', width: '3px', height: '22px',
+        background: C.green, borderRadius: '2px', flexShrink: 0,
+      }} />
+      <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: C.gray900 }}>{title}</h2>
+      <span style={pill(count)}>{count}</span>
+    </div>
+    {onExport && (
+      <div>
+        <button onClick={onExport} style={{ ...btnOutline, display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+          <FontAwesomeIcon icon={faFilePdf} />
+          Exportar PDF
+        </button>
+      </div>
+    )}
   </div>
 );
 
@@ -604,6 +691,25 @@ const tomas = tomasSnap.docs.map(doc => ({
             {isDownloadingAll ? 'Comprimiendo…' : `Descargar ZIP (${usuarios.length})`}
           </button>
 
+          <button
+            onClick={() => {
+              if (filteredUsuarios.length === 0) {
+                toast.warning('No hay usuarios para exportar', { position: 'top-right', autoClose: 3000 });
+                return;
+              }
+              buildPrintFrame(buildUsuariosPdfHtml(filteredUsuarios));
+            }}
+            disabled={loading || filteredUsuarios.length === 0}
+            style={{
+              ...btnOutline,
+              opacity: (loading || filteredUsuarios.length === 0) ? 0.45 : 1,
+              cursor: (loading || filteredUsuarios.length === 0) ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <FontAwesomeIcon icon={faFilePdf} />
+            Exportar PDF
+          </button>
+
           <ComparadorAdherencia usuarios={usuarios} />
         </div>
 
@@ -634,13 +740,13 @@ const tomas = tomasSnap.docs.map(doc => ({
           <>
             {usuariosA.length > 0 && (
               <section style={{ marginBottom: '2.5rem' }}>
-                <GroupHeader title="Usuarios Tipo A" count={usuariosA.length} />
+                <GroupHeader title="Usuarios Tipo A" count={usuariosA.length} onExport={() => buildPrintFrame(buildUsuariosPdfHtml(usuariosA))} />
                 {renderUserList(usuariosA)}
               </section>
             )}
             {usuariosB.length > 0 && (
               <section style={{ marginBottom: '2.5rem' }}>
-                <GroupHeader title="Usuarios Tipo B" count={usuariosB.length} />
+                <GroupHeader title="Usuarios Tipo B" count={usuariosB.length} onExport={() => buildPrintFrame(buildUsuariosPdfHtml(usuariosB))} />
                 {renderUserList(usuariosB)}
               </section>
             )}

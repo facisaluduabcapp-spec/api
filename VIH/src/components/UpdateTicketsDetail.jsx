@@ -4,7 +4,7 @@ import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firest
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { logAction } from '../utils/adminLogs';
 import {
-    faArrowLeft, faCheckCircle, faTimesCircle, faSpinner, faExclamationTriangle
+    faArrowLeft, faCheckCircle, faTimesCircle, faSpinner, faExclamationTriangle, faPrint
 } from '@fortawesome/free-solid-svg-icons';
 
 // ── Labels ────────────────────────────────────────────────────
@@ -36,6 +36,108 @@ const formatDate = (ts) => {
     if (!ts) return '—';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+const openPrintWindow = (title, bodyHtml) => {
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${title}</title><style>
+        body{font-family:Arial,Helvetica,sans-serif;color:#111827;padding:24px;}
+        h1{font-size:22px;margin-bottom:4px;}
+        p{margin:6px 0;}
+        table{width:100%;border-collapse:collapse;margin-top:18px;}
+        th,td{border:1px solid #d1d5db;padding:10px;text-align:left;vertical-align:top;}
+        th{background:#f3f4f6;font-weight:700;}
+        .section{margin-top:20px;}
+    </style></head><body><h1>${title}</h1>${bodyHtml}</body></html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
+
+    const printWindow = iframe.contentWindow || iframeDoc.defaultView;
+    let hasPrinted = false;
+    const triggerPrint = () => {
+        if (!printWindow || printWindow.closed || hasPrinted) return;
+        hasPrinted = true;
+        printWindow.focus();
+        try {
+            printWindow.print();
+        } catch (error) {
+            console.error('Print failed:', error);
+            alert('No se pudo iniciar la impresión. Revisa la consola.');
+        } finally {
+            setTimeout(() => {
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            }, 500);
+        }
+    };
+
+    iframe.onload = () => {
+        setTimeout(triggerPrint, 200);
+    };
+    setTimeout(triggerPrint, 500);
+};
+
+const buildUpdateReceiptHtml = (ticket, actual, nuevo, statusLabel) => {
+    const fields = [
+        ['Nombre', actual.nombre, nuevo.nombre],
+        ['Género', actual.genero, nuevo.genero],
+        ['Año de nacimiento', actual.anoNacimiento, nuevo.anoNacimiento],
+        ['Escolaridad', actual.escolaridad, nuevo.escolaridad],
+        ['País de origen', actual.paisOrigen, nuevo.paisOrigen],
+        ['Años en BC', actual.anosRadicandoBC, nuevo.anosRadicandoBC],
+        ['Tipo de usuario', actual.tipoUsuario, nuevo.tipoUsuario],
+    ];
+
+    const condRows = Object.keys(CONDICION_LABELS).map(key => {
+        return `<tr><th>${CONDICION_LABELS[key]}</th><td>${boolLabel(actual.condiciones?.[key])}</td><td>${boolLabel(nuevo.condiciones?.[key])}</td></tr>`;
+    }).join('');
+
+    const arvRows = Object.keys(ARV_LABELS).map(key => {
+        return `<tr><th>${ARV_LABELS[key]}</th><td>${boolLabel(actual.medicacionVIH?.[key])}</td><td>${boolLabel(nuevo.medicacionVIH?.[key])}</td></tr>`;
+    }).join('');
+
+    const medKeys = [...new Set([...(actual.medicacionAdicional ? Object.keys(actual.medicacionAdicional) : []), ...(nuevo.medicacionAdicional ? Object.keys(nuevo.medicacionAdicional) : [])])];
+    const medRows = medKeys.map(key => {
+        const a = actual.medicacionAdicional?.[key] || {};
+        const n = nuevo.medicacionAdicional?.[key] || {};
+        return `<tr><th>${key.replace(/_/g, ' ')}</th><td>${a.activo ? 'Activo' : 'Inactivo'} ${a.frecuencia ? `· ${a.frecuencia} veces/día` : ''}</td><td>${n.activo ? 'Activo' : 'Inactivo'} ${n.frecuencia ? `· ${n.frecuencia} veces/día` : ''}</td></tr>`;
+    }).join('');
+
+    return `
+        <p><strong>UID:</strong> ${ticket.uid}</p>
+        <p><strong>Fecha de solicitud:</strong> ${formatDate(ticket.fechaSolicitud)}</p>
+        <p><strong>Estado:</strong> ${statusLabel}</p>
+        <div class="section"><h2>Comparativo de datos</h2>
+            <table>
+                <tr><th>Campo</th><th>Actual</th><th>Propuesto</th></tr>
+                ${fields.map(([label, a, n]) => `<tr><th>${label}</th><td>${a ?? '—'}</td><td>${n ?? '—'}</td></tr>`).join('')}
+            </table>
+        </div>
+        <div class="section"><h2>Condiciones médicas</h2>
+            <table>
+                <tr><th>Condición</th><th>Actual</th><th>Nuevo</th></tr>
+                ${condRows}
+            </table>
+        </div>
+        <div class="section"><h2>Medicación ARV</h2>
+            <table>
+                <tr><th>Medicamento</th><th>Actual</th><th>Nuevo</th></tr>
+                ${arvRows}
+            </table>
+        </div>
+        ${medRows ? `<div class="section"><h2>Medicación adicional</h2><table><tr><th>Medicamento</th><th>Actual</th><th>Nuevo</th></tr>${medRows}</table></div>` : ''}
+    `;
 };
 
 // ── Helpers visuales ──────────────────────────────────────────
@@ -115,6 +217,13 @@ const s = {
         fontFamily: "'DM Sans', sans-serif", fontSize: '0.875rem',
         fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1,
     }),
+    printBtn: {
+        display: 'flex', alignItems: 'center', gap: '0.5rem',
+        padding: '0.65rem 1.4rem', borderRadius: '8px',
+        border: '1.5px solid #d1d5db', background: '#f3f4f6',
+        color: '#374151', fontFamily: "'DM Sans', sans-serif",
+        fontSize: '0.875rem', fontWeight: '700', cursor: 'pointer',
+    },
     rejectToggleBtn: {
         display: 'flex', alignItems: 'center', gap: '0.5rem',
         padding: '0.65rem 1.4rem', borderRadius: '8px',
@@ -256,6 +365,11 @@ export default function UpdateTicketDetail({ uid, onBack }) {
     const status = STATUS_MAP[ticket.estado] || STATUS_MAP.pendiente;
     const isPending = ticket.estado === 'pendiente';
 
+    const handlePrintUpdate = () => {
+        const html = buildUpdateReceiptHtml(ticket, actual, nuevo, status.label);
+        openPrintWindow('Comprobante de actualización', html);
+    };
+
     // Unión de todas las claves de medicación adicional
     const allMedKeys = [...new Set([
         ...Object.keys(actual.medicacionAdicional || {}),
@@ -359,6 +473,12 @@ export default function UpdateTicketDetail({ uid, onBack }) {
 
             {/* ── ACCIONES ── */}
             <div style={s.actionsBox}>
+                <div style={{ marginBottom: '1rem' }}>
+                    <button style={s.printBtn} onClick={handlePrintUpdate}>
+                        <FontAwesomeIcon icon={faPrint} />
+                        Imprimir comprobante
+                    </button>
+                </div>
                 {done === 'aprobado' && (
                     <div style={s.doneBox('#065f46', '#d1fae5')}>
                         <FontAwesomeIcon icon={faCheckCircle} />

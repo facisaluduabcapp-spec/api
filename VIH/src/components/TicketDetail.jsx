@@ -5,7 +5,7 @@ import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firest
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faArrowLeft, faCheckCircle, faTimesCircle, faSpinner,
-    faUser, faPills, faHeartPulse, faCalendar, faMapMarkerAlt,
+    faPrint, faUser, faPills, faHeartPulse, faCalendar, faMapMarkerAlt,
     faGraduationCap, faIdCard, faNotesMedical, faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -38,6 +38,88 @@ const formatDate = (ts) => {
     if (!ts) return '—';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+const openPrintWindow = (title, bodyHtml) => {
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${title}</title><style>
+        body{font-family:Arial,Helvetica,sans-serif;color:#111827;padding:24px;}
+        h1{font-size:22px;margin-bottom:4px;}
+        p{margin:6px 0;}
+        table{width:100%;border-collapse:collapse;margin-top:18px;}
+        th,td{border:1px solid #d1d5db;padding:10px;text-align:left;vertical-align:top;}
+        th{background:#f3f4f6;font-weight:700;}
+        .badge{display:inline-block;padding:0.35rem 0.9rem;border-radius:999px;background:#f3f4f6;color:#374151;font-weight:700;}
+        .section{margin-top:20px;}
+    </style></head><body><h1>${title}</h1>${bodyHtml}</body></html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
+
+    const printWindow = iframe.contentWindow || iframeDoc.defaultView;
+    let hasPrinted = false;
+    const triggerPrint = () => {
+        if (!printWindow || printWindow.closed || hasPrinted) return;
+        hasPrinted = true;
+        printWindow.focus();
+        try {
+            printWindow.print();
+        } catch (error) {
+            console.error('Print failed:', error);
+            alert('No se pudo iniciar la impresión. Revisa la consola.');
+        } finally {
+            setTimeout(() => {
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            }, 500);
+        }
+    };
+
+    iframe.onload = () => {
+        setTimeout(triggerPrint, 200);
+    };
+    setTimeout(triggerPrint, 500);
+};
+
+const buildRegistroReceiptHtml = (ticket, datos, statusLabel) => {
+    const condiciones = Object.entries(datos.condiciones || {}).map(([key, value]) => `<tr><th>${CONDICION_LABELS[key] || key}</th><td>${value === true ? 'Sí' : value === false ? 'No' : '—'}</td></tr>`).join('');
+    const arvActivos = Object.entries(datos.medicacionVIH || {}).filter(([, v]) => v).map(([key]) => ARV_LABELS[key] || key);
+    const medsAdicionales = Object.entries(datos.medicacionAdicional || {}).map(([key, med]) => `<tr><th>${key.replace(/_/g, ' ')}</th><td>${med.frecuencia} ${med.frecuencia === 1 ? 'vez' : 'veces'} al día · ${med.activo ? 'Activo' : 'Inactivo'}</td></tr>`).join('');
+
+    return `
+        <p><strong>UID:</strong> ${ticket.uid}</p>
+        <p><strong>Fecha de solicitud:</strong> ${formatDate(ticket.fechaSolicitud)}</p>
+        <p><strong>Estado:</strong> ${statusLabel}</p>
+        <div class="section"><h2>Datos personales</h2>
+            <table>
+                <tr><th>Nombre</th><td>${datos.nombre || '—'}</td></tr>
+                <tr><th>Correo</th><td>${datos.email || '—'}</td></tr>
+                <tr><th>Género</th><td>${datos.genero || '—'}</td></tr>
+                <tr><th>Año de nacimiento</th><td>${datos.anoNacimiento || '—'}</td></tr>
+                <tr><th>Escolaridad</th><td>${datos.escolaridad || '—'}</td></tr>
+                <tr><th>País de origen</th><td>${datos.paisOrigen || '—'}</td></tr>
+                <tr><th>Años en BC</th><td>${datos.anosRadicandoBC ?? '—'}</td></tr>
+                <tr><th>Tipo de usuario</th><td>${datos.tipoUsuario || '—'}</td></tr>
+            </table>
+        </div>
+        <div class="section"><h2>Condiciones médicas</h2>
+            <table>${condiciones || '<tr><td colspan="2">No hay condiciones registradas</td></tr>'}</table>
+        </div>
+        <div class="section"><h2>Medicación ARV</h2>
+            <table>${arvActivos.length > 0 ? arvActivos.map(name => `<tr><td>${name}</td></tr>`).join('') : '<tr><td>No seleccionado</td></tr>'}</table>
+        </div>
+        ${medsAdicionales.length > 0 ? `<div class="section"><h2>Medicación adicional</h2><table>${medsAdicionales}</table></div>` : ''}
+    `;
 };
 
 // ── estilos ──────────────────────────────────────────────────────────
@@ -197,6 +279,20 @@ tipoBtn: (active) => ({
         transition: 'background 0.15s',
         opacity: loading ? 0.7 : 1,
     }),
+    printBtn: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        padding: '0.65rem 1.4rem',
+        borderRadius: '8px',
+        border: '1.5px solid #d1d5db',
+        background: '#f3f4f6',
+        color: '#374151',
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: '0.875rem',
+        fontWeight: '700',
+        cursor: 'pointer',
+    },
     rejectToggleBtn: {
         display: 'flex',
         alignItems: 'center',
@@ -402,6 +498,11 @@ export default function TicketDetail({ uid, onBack }) {
     const medsAdicionales = Object.entries(datos.medicacionAdicional || {});
     const isPending = ticket.estado === 'pendiente';
 
+    const handlePrintRegistro = () => {
+        const html = buildRegistroReceiptHtml(ticket, datos, status.label);
+        openPrintWindow('Comprobante de registro', html);
+    };
+
     return (
         <div style={s.page}>
             {/* Botón volver */}
@@ -514,6 +615,12 @@ export default function TicketDetail({ uid, onBack }) {
 
             {/* Área de acciones */}
             <div style={s.actionsBox}>
+                <div style={{ marginBottom: '1rem' }}>
+                    <button style={s.printBtn} onClick={handlePrintRegistro}>
+                        <FontAwesomeIcon icon={faPrint} />
+                        Imprimir comprobante
+                    </button>
+                </div>
                 {done === 'aprobado' && (
                     <div style={s.alreadyHandled('#065f46', '#d1fae5')}>
                         <FontAwesomeIcon icon={faCheckCircle} />

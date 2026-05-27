@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faBrain, faSpinner, faExclamationTriangle,
     faCheckCircle, faLightbulb, faTimes, faCalendarCheck,
-    faHeartbeat, faPills
+    faHeartbeat, faPills, faFilePdf
 } from '@fortawesome/free-solid-svg-icons';
 
 // ─────────────────────────────────────────────────────────────────────
@@ -33,6 +33,127 @@ const offsetDate = (daysAgo) => {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day   = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+};
+
+const escapeHtml = (value) => {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
+const buildPrintFrame = (contentHtml) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><title>Informe</title><style>
+        body { font-family: system-ui, sans-serif; color: #111; padding: 24px; }
+        h1, h2, h3, th { color: #111; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; vertical-align: top; }
+        th { background: #f3f4f6; }
+        .section { margin-bottom: 1.5rem; }
+    </style></head><body>${contentHtml}</body></html>`;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+        try {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+        } finally {
+            setTimeout(() => document.body.removeChild(iframe), 1200);
+        }
+    };
+};
+
+const buildAnalysisPdfHtml = (analysis, usuario) => {
+    const fecha = new Date().toLocaleString('es-MX', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    const modelDetails = analysis?.modelDetails || {};
+    const alertsHtml = (analysis?.alertas || []).map((alerta) => `
+        <tr>
+          <td style="padding: 12px; border: 1px solid #ddd;">${escapeHtml(alerta.categoria)}</td>
+          <td style="padding: 12px; border: 1px solid #ddd;">${escapeHtml(alerta.nivel)}</td>
+          <td style="padding: 12px; border: 1px solid #ddd;">${escapeHtml(alerta.mensaje)}</td>
+          <td style="padding: 12px; border: 1px solid #ddd;">${escapeHtml(alerta.accion)}</td>
+        </tr>
+    `).join('') || `<tr><td colspan="4" style="padding: 12px; border: 1px solid #ddd;">Sin alertas</td></tr>`;
+    const recommendationsHtml = (analysis?.recomendaciones || []).map((recomendacion) => `
+        <tr>
+          <td style="padding: 12px; border: 1px solid #ddd;">${escapeHtml(recomendacion.area)}</td>
+          <td style="padding: 12px; border: 1px solid #ddd;">${escapeHtml(recomendacion.prioridad)}</td>
+          <td style="padding: 12px; border: 1px solid #ddd;">${escapeHtml(recomendacion.recomendacion)}</td>
+          <td style="padding: 12px; border: 1px solid #ddd;">${escapeHtml(recomendacion.impacto)}</td>
+        </tr>
+    `).join('') || `<tr><td colspan="4" style="padding: 12px; border: 1px solid #ddd;">Sin recomendaciones</td></tr>`;
+
+    return `
+      <div class="section">
+        <h1>Informe de análisis</h1>
+        <p><strong>Paciente:</strong> ${escapeHtml(usuario.nombre)}</p>
+        <p><strong>UID:</strong> ${escapeHtml(usuario.userId)}</p>
+        <p><strong>Modelo:</strong> ${escapeHtml((analysis?.model || 'N/A').toUpperCase())}</p>
+        <p><strong>Fecha:</strong> ${escapeHtml(fecha)}</p>
+      </div>
+      <div class="section">
+        <h2>Resultados del modelo</h2>
+        <table>
+          <tbody>
+            <tr><th>Probabilidad</th><td>${escapeHtml(modelDetails.prob ?? 'N/A')}</td></tr>
+            <tr><th>Will take</th><td>${escapeHtml(modelDetails.will_take ?? 'N/A')}</td></tr>
+            <tr><th>Riesgo</th><td>${escapeHtml(modelDetails.risk ?? 'N/A')}</td></tr>
+            <tr><th>Threshold</th><td>${escapeHtml(modelDetails.threshold ?? 'N/A')}</td></tr>
+            <tr><th>Patient ID</th><td>${escapeHtml(modelDetails.patient_id ?? usuario.userId)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="section">
+        <h2>Resumen de adherencia</h2>
+        <table>
+          <tbody>
+            <tr><th>Porcentaje 6d</th><td>${escapeHtml(analysis?.adherencia6d?.porcentaje ?? 'N/A')}%</td></tr>
+            <tr><th>Días adherentes</th><td>${escapeHtml(analysis?.adherencia6d?.diasAdherentes ?? 'N/A')} / ${escapeHtml(analysis?.adherencia6d?.diasTotales ?? 'N/A')}</td></tr>
+            <tr><th>Intervalo</th><td>${escapeHtml(analysis?.adherencia6d ? `${offsetDate(6)} → ${offsetDate(1)}` : 'N/A')}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="section">
+        <h2>Alertas clínicas</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Categoria</th>
+              <th>Nivel</th>
+              <th>Mensaje</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody>${alertsHtml}</tbody>
+        </table>
+      </div>
+      <div class="section">
+        <h2>Recomendaciones</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Área</th>
+              <th>Prioridad</th>
+              <th>Recomendación</th>
+              <th>Impacto</th>
+            </tr>
+          </thead>
+          <tbody>${recommendationsHtml}</tbody>
+        </table>
+      </div>
+      <div class="section">
+        <p><strong>Total tomas registradas:</strong> ${escapeHtml(analysis?.estadisticasMeds?.totalTomas ?? '0')}</p>
+      </div>
+    `;
 };
 
 const diaSemanaDeStr = (dateStr) => {
@@ -509,6 +630,12 @@ const AnalizadorInteligente = ({ usuario }) => {
         } finally { setIsAnalyzing(false); }
     };
 
+    const handlePrintAnalysis = () => {
+        if (!analysis) return;
+        const contentHtml = buildAnalysisPdfHtml(analysis, usuario);
+        buildPrintFrame(contentHtml);
+    };
+
     // ── MODAL ──────────────────────────────────────────────────────────
 
     const Modal = () => {
@@ -553,9 +680,26 @@ const AnalizadorInteligente = ({ usuario }) => {
                                 </p>
                             </div>
                         </div>
-                        <button onClick={() => setShowModal(false)} style={{ background:C.gray100, border:'none', cursor:'pointer', borderRadius:'50%', width:'32px', height:'32px', display:'flex', alignItems:'center', justifyContent:'center', color:C.gray500 }}>
-                            <FontAwesomeIcon icon={faTimes} style={{ fontSize:'0.8rem' }}/>
-                        </button>
+                            <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                                <button onClick={handlePrintAnalysis} disabled={!analysis} style={{
+                                    background: C.white,
+                                    color: C.greenDark,
+                                    border: `1px solid ${C.green}`,
+                                    padding: '0.45rem 0.85rem',
+                                    fontSize: '0.78rem',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.35rem',
+                                    cursor: !analysis ? 'not-allowed' : 'pointer',
+                                    borderRadius: '6px',
+                                }}>
+                                    <FontAwesomeIcon icon={faFilePdf} />
+                                    Exportar PDF
+                                </button>
+                                <button onClick={() => setShowModal(false)} style={{ background:C.gray100, border:'none', cursor:'pointer', borderRadius:'50%', width:'32px', height:'32px', display:'flex', alignItems:'center', justifyContent:'center', color:C.gray500 }}>
+                                    <FontAwesomeIcon icon={faTimes} style={{ fontSize:'0.8rem' }}/>
+                                </button>
+                            </div>
                     </div>
 
                     <div style={{ padding:'1.25rem', display:'flex', flexDirection:'column', gap:'1.25rem' }}>
